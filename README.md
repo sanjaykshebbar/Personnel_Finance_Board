@@ -14,15 +14,19 @@ A premium, lightweight personal finance dashboard built for high-performance and
 - **🤝 Lending Tracker**: Manage money lent and borrowed with automated settlement logic and progress bars.
 - **💳 Credit Monitor**: Track card limits and real-time utilization to maintain high credit scores.
 
-## 🚀 Installation & Deployment
+### Option 1: One-Liner Install (Linux Server)
+The fastest way to install on a fresh Linux server.
+```bash
+curl -fsSL https://raw.githubusercontent.com/sanjaykshebbar/Personnel_Finance_Board/master/install.sh | bash
+```
 
-### Option 1: Docker (Recommended)
+### Option 2: Docker (Recommended)
 Perfect for Linux servers and Raspberry Pi. Uses a lightweight, multi-arch optimized image.
 
 1. **Clone the repository**:
    ```bash
-   git clone <your-repo-url>
-   cd expense-tracker
+   git clone https://github.com/sanjaykshebbar/Personnel_Finance_Board.git
+   cd Personnel_Finance_Board
    ```
 2. **Start with Docker Compose**:
    ```bash
@@ -32,6 +36,20 @@ Perfect for Linux servers and Raspberry Pi. Uses a lightweight, multi-arch optim
 
 > [!NOTE]
 > Data is persisted in the local `./db` and `./uploads` folders.
+
+## 🛰️ Maintenance & Backup
+
+### Backup
+Your entire financial history is stored in a single file.
+- **Location**: `db/finance.db`
+- **Backup Command**: `cp db/finance.db /path/to/backup/finance.db_$(date +%F)`
+
+### Restore
+1. Copy your backup file back to the `db/` folder.
+2. Rename it to `finance.db`.
+3. Ensure the web server has write permissions: `chmod 775 db/finance.db`.
+
+---
 
 ### Option 2: Manual (PHP + SQLite)
 1. **Requirements**: PHP 8.1+, SQLite3.
