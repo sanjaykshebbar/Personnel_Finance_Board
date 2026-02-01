@@ -393,7 +393,6 @@ foreach ($plans as $plan) {
                     <?php endif; ?>
                 </tbody>
             </table>
-        </div>
     </div>
 </div>
 

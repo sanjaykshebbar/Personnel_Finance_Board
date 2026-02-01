@@ -34,7 +34,8 @@ function initDb($pdo) {
     $queries[] = "CREATE TABLE IF NOT EXISTS income (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER,
-        month TEXT NOT NULL, -- Removed UNIQUE global constraint to allow unique per user via logic/composite index
+        month TEXT NOT NULL,
+        accounting_date DATE,
         salary_income REAL DEFAULT 0,
         other_income REAL DEFAULT 0,
         total_income REAL DEFAULT 0,
@@ -154,6 +155,10 @@ function initDb($pdo) {
             try { $pdo->exec("ALTER TABLE $table ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE"); } catch (Exception $e) {}
         }
         
+        if ($table === 'income' && !in_array('accounting_date', $existingCols)) {
+            try { $pdo->exec("ALTER TABLE income ADD COLUMN accounting_date DATE"); } catch (Exception $e) {}
+        }
+
         if ($table === 'investment_plans' && !in_array('category', $existingCols)) {
             try { $pdo->exec("ALTER TABLE investment_plans ADD COLUMN category TEXT DEFAULT 'Other'"); } catch (Exception $e) {}
         }

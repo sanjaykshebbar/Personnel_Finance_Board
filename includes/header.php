@@ -14,7 +14,9 @@ $basePath = (basename(dirname($_SERVER['PHP_SELF'])) === 'pages') ? '../' : '';
             document.documentElement.classList.remove('dark');
         }
     </script>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#4f46e5">
+    <link rel="manifest" href="<?php echo $basePath; ?>manifest.json">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
@@ -70,18 +72,23 @@ $basePath = (basename(dirname($_SERVER['PHP_SELF'])) === 'pages') ? '../' : '';
         <!-- Main Content -->
         <div class="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
             <!-- Header -->
-            <header class="bg-white dark:bg-gray-900 shadow border-b border-gray-200 dark:border-gray-800 transition-colors duration-300">
-                <div class="px-4 py-4 sm:px-6 lg:px-8 flex justify-between items-center">
-                    <h1 class="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
-                        <?php echo isset($pageTitle) ? $pageTitle : 'Dashboard'; ?>
-                    </h1>
-                    <div class="flex items-center space-x-4">
-                        <button id="theme-toggle" class="p-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg text-sm transition-all">
+            <header class="bg-white dark:bg-gray-900 shadow border-b border-gray-200 dark:border-gray-800 transition-colors duration-300 sticky top-0 z-30">
+                <div class="px-4 py-3 sm:px-6 lg:px-8 flex justify-between items-center">
+                    <div class="flex items-center">
+                        <button onclick="toggleBottomSheet()" class="md:hidden mr-3 p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
+                            <span class="text-xl">☰</span>
+                        </button>
+                        <h1 class="text-xl md:text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
+                            <?php echo isset($pageTitle) ? $pageTitle : 'Dashboard'; ?>
+                        </h1>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <button id="theme-toggle" class="p-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg text-sm transition-all focus:outline-none">
                             <span id="theme-toggle-dark-icon" class="hidden">🌙</span>
                             <span id="theme-toggle-light-icon" class="hidden">☀️</span>
                         </button>
-                        <span class="text-sm text-gray-500 dark:text-gray-400 hidden sm:inline"><?php echo date('F j, Y'); ?></span>
-                        <div class="h-8 w-8 rounded-full bg-brand-500 flex items-center justify-center text-white font-bold shadow-sm">
+                        <span class="text-xs text-gray-500 dark:text-gray-400 hidden lg:inline"><?php echo date('F j, Y'); ?></span>
+                        <div class="h-8 w-8 rounded-full bg-brand-500 flex items-center justify-center text-white font-bold shadow-sm ring-2 ring-white dark:ring-gray-800">
                             <?php echo strtoupper(substr($_SESSION['user_name'] ?? 'U', 0, 1)); ?>
                         </div>
                     </div>

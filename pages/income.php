@@ -116,7 +116,6 @@ $incomes = $stmt->fetchAll();
         </form>
     </div>
 
-    </div>
 
     <script>
     document.addEventListener('DOMContentLoaded', function() {

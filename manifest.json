@@ -1,17 +1,21 @@
 {
-  "name": "Finance Board",
-  "short_name": "Finance",
-  "description": "Premium self-hosted personal finance tracker.",
+  "name": "Expense Tracker",
+  "short_name": "FinanceBoard",
+  "description": "Personal Expense Tracker Dashboard",
   "start_url": "index.php",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#4f46e5",
   "icons": [
     {
-      "src": "assets/app_icon_512.png",
+      "src": "https://cdn.pixabay.com/photo/2017/09/07/08/54/money-2724241_1280.jpg",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://cdn.pixabay.com/photo/2017/09/07/08/54/money-2724241_1280.jpg",
       "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
+      "type": "image/png"
     }
   ]
 }

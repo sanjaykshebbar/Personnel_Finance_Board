@@ -297,48 +297,50 @@ foreach($expenses as $e) $totalView += $e['amount'];
 
     <!-- Table -->
     <div class="bg-white shadow rounded-lg overflow-x-auto">
-        <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
-                <tr>
-                    <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Date</th>
-                    <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Description</th>
-                    <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Category</th>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Date</th>
+                        <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Description</th>
+                        <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Category</th>
 
-                    <th class="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase">Amount</th>
-                    <th class="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase">Action</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-200">
-                <?php foreach ($expenses as $row): ?>
-                <tr>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?php echo htmlspecialchars($row['date']); ?></td>
-                    <td class="px-6 py-4 text-sm text-gray-900">
-                        <?php echo htmlspecialchars($row['description']); ?>
-                        <div class="text-xs text-gray-400 mt-1">Paid via <?php echo htmlspecialchars($row['payment_method']); ?></div>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <span class="bg-gray-100 text-gray-800 text-xs font-semibold px-2 py-0.5 rounded"><?php echo htmlspecialchars($row['category']); ?></span>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm">
-                        <span class="font-bold text-gray-900">₹<?php echo number_format($row['amount'], 2); ?></span>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm space-x-3">
-                        <?php if(strpos(strtolower($row['payment_method']), 'credit') !== false || strpos(strtolower($row['payment_method']), 'later') !== false): ?>
-                            <button onclick='openEmiModal(<?php echo json_encode($row); ?>)' 
-                                    class="text-brand-600 hover:text-brand-800 text-xs font-bold uppercase tracking-wider">
-                                Convert to EMI
-                            </button>
-                        <?php endif; ?>
-                        
-                        <form method="POST" onsubmit="return confirm('Delete?');" class="inline">
-                            <input type="hidden" name="delete_id" value="<?php echo $row['id']; ?>">
-                            <button type="submit" class="text-red-500 hover:text-red-700 font-bold">&times;</button>
-                        </form>
-                    </td>
-                </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
+                        <th class="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase">Amount</th>
+                        <th class="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase">Action</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    <?php foreach ($expenses as $row): ?>
+                    <tr>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?php echo htmlspecialchars($row['date']); ?></td>
+                        <td class="px-6 py-4 text-sm text-gray-900">
+                            <?php echo htmlspecialchars($row['description']); ?>
+                            <div class="text-xs text-gray-400 mt-1">Paid via <?php echo htmlspecialchars($row['payment_method']); ?></div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <span class="bg-gray-100 text-gray-800 text-xs font-semibold px-2 py-0.5 rounded"><?php echo htmlspecialchars($row['category']); ?></span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm">
+                            <span class="font-bold text-gray-900">₹<?php echo number_format($row['amount'], 2); ?></span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm space-x-3">
+                            <?php if(strpos(strtolower($row['payment_method']), 'credit') !== false || strpos(strtolower($row['payment_method']), 'later') !== false): ?>
+                                <button onclick='openEmiModal(<?php echo json_encode($row); ?>)' 
+                                        class="text-brand-600 hover:text-brand-800 text-xs font-bold uppercase tracking-wider">
+                                    Convert to EMI
+                                </button>
+                            <?php endif; ?>
+                            
+                            <form method="POST" onsubmit="return confirm('Delete?');" class="inline">
+                                <input type="hidden" name="delete_id" value="<?php echo $row['id']; ?>">
+                                <button type="submit" class="text-red-500 hover:text-red-700 font-bold">&times;</button>
+                            </form>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
         <?php if(empty($expenses)): ?>
             <p class="p-6 text-center text-gray-500">No expenses found for this selection.</p>
         <?php endif; ?>
