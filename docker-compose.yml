@@ -12,4 +12,10 @@ services:
       - ./uploads:/var/www/html/uploads
     restart: unless-stopped
     environment:
-      - TZ=GMT
+      - TZ=Asia/Kolkata
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost/index.php" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s

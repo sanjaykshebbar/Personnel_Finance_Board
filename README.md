@@ -7,6 +7,7 @@ A premium, lightweight personal finance dashboard built for high-performance and
 ## ✨ Core Features
 
 - **📊 Dynamic Dashboard**: Real-time charts for Spending Categories, Borrowed vs Lent, and Total Savings Breakdown.
+- **📱 Mobile-First Navigation**: Smooth bottom-sheet navigation for a native app-like experience on smartphones.
 - **🏦 Smart Income Tracking**: Shift your budget months based on your actual salary cycle (e.g., Jan 31st salary affects February budget).
 - **💸 Expense Ledger**: Robust tracking with payment method support (Bank vs Credit Card) and automatic category grouping.
 - **📈 Investment Vault**: Track SIPs, fixed deposits, and recurring investments with progress tracking and variable payment logging.
@@ -14,14 +15,16 @@ A premium, lightweight personal finance dashboard built for high-performance and
 - **🤝 Lending Tracker**: Manage money lent and borrowed with automated settlement logic and progress bars.
 - **💳 Credit Monitor**: Track card limits and real-time utilization to maintain high credit scores.
 
-### Option 1: One-Liner Install (Linux Server)
-The fastest way to install on a fresh Linux server.
+## 🚀 Easy Deployment
+
+### Option 1: Automated Installer (Ubuntu/Debian)
+The fastest way to install on a fresh Linux server. This script installs Apache, PHP, and sets up everything for you.
 ```bash
-curl -fsSL https://raw.githubusercontent.com/sanjaykshebbar/Personnel_Finance_Board/master/install.sh | bash
+sudo bash install.sh
 ```
 
 ### Option 2: Docker (Recommended)
-Perfect for Linux servers and Raspberry Pi. Uses a lightweight, multi-arch optimized image.
+Perfect for any machine with Docker. Highly portable and persistent.
 
 1. **Clone the repository**:
    ```bash
@@ -64,9 +67,9 @@ Your entire financial history is stored in a single file.
 ## 🛠️ Technical Stack
 - **Backend**: Pure PHP 8.2 (No bloated frameworks)
 - **Database**: SQLite3 (Serverless, ultra-portable)
-- **Frontend**: Vanilla CSS + Tailwind CSS (Vibrant UI)
+- **Frontend**: Vanilla CSS + Tailwind CSS (Native Glassmorphism UI)
 - **Charts**: Chart.js for data visualization
-- **Docker**: Cross-platform support (Linux/ARM/RPi)
+- **Docker**: Health-monitored containers for 24/7 reliability
 
 ## 📁 Project Structure
 - `pages/`: Core application modules (Income, Expenses, etc.)
