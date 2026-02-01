@@ -1,0 +1,31 @@
+# Databases
+db/*.db
+db/*.db-journal
+
+# Uploads & Secrets
+uploads/vault/user_*/**
+!uploads/vault/.gitkeep
+.env
+
+# PHP / OS Trash
+.DS_Store
+Thumbs.db
+*.log
+vendor/
+node_modules/
+
+# Local Dev Scripts
+check_*.php
+test_*.php
+verify_*.php
+debug_*.php
+repro_*.php
+dump_*.php
+migration_*.php
+verify_fixes.php
+schema_output.txt
+expense_debug.json
+.vscode/
+.gemini/
+brain/
+*.bat

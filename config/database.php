@@ -1,0 +1,221 @@
+<?php
+// config/database.php
+
+$dbPath = __DIR__ . '/../db/finance.db';
+
+try {
+    // Create (connect to) SQLite database in file
+    $pdo = new PDO("sqlite:" . $dbPath);
+    // Set errormode to exception
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+
+    // Enable foreign keys
+    $pdo->exec("PRAGMA foreign_keys = ON;");
+
+} catch(PDOException $e) {
+    die("Connection failed: " . $e->getMessage());
+}
+
+/**
+ * Initialize Database Schema
+ */
+function initDb($pdo) {
+    // 0. Users Table
+    $queries[] = "CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )";
+
+    // 1. Income Table
+    $queries[] = "CREATE TABLE IF NOT EXISTS income (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        month TEXT NOT NULL, -- Removed UNIQUE global constraint to allow unique per user via logic/composite index
+        salary_income REAL DEFAULT 0,
+        other_income REAL DEFAULT 0,
+        total_income REAL DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )";
+
+    // 2. Expenses Table
+    $queries[] = "CREATE TABLE IF NOT EXISTS expenses (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        date DATE NOT NULL,
+        category TEXT NOT NULL,
+        description TEXT,
+        amount REAL NOT NULL,
+        payment_method TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )";
+
+    // 3. Investments Table
+    $queries[] = "CREATE TABLE IF NOT EXISTS investments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        investment_name TEXT NOT NULL,
+        frequency TEXT CHECK(frequency IN ('Monthly', 'Quarterly', 'Yearly')) NOT NULL,
+        amount REAL NOT NULL,
+        status TEXT CHECK(status IN ('Paid', 'Pending')) DEFAULT 'Pending',
+        due_date DATE,
+        plan_id INTEGER,
+        expense_id INTEGER,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )";
+
+    // 4. Loans (Lending/Borrowing) Table
+    $queries[] = "CREATE TABLE IF NOT EXISTS loans (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        person_name TEXT NOT NULL,
+        type TEXT CHECK(type IN ('Lent', 'Borrowed')) NOT NULL,
+        amount REAL NOT NULL,
+        paid_amount REAL DEFAULT 0, -- FIXED: Added missing column
+        status TEXT CHECK(status IN ('Pending', 'Settled')) DEFAULT 'Pending',
+        date DATE NOT NULL,
+        settlement_date DATE,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )";
+
+    // 5. Credit Accounts Table
+    $queries[] = "CREATE TABLE IF NOT EXISTS credit_accounts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        provider_name TEXT NOT NULL,
+        credit_limit REAL NOT NULL,
+        used_amount REAL DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )";
+
+    // 6. EMIs Table
+    $queries[] = "CREATE TABLE IF NOT EXISTS emis (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        name TEXT NOT NULL,
+        total_amount REAL NOT NULL,
+        interest_rate REAL DEFAULT 0,
+        tenure_months INTEGER NOT NULL,
+        emi_amount REAL NOT NULL,
+        paid_months INTEGER DEFAULT 0,
+        start_date DATE NOT NULL,
+        status TEXT CHECK(status IN ('Active', 'Closed', 'Completed')) DEFAULT 'Active',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )";
+    
+    // Payslips Table (Vault)
+    $queries[] = "CREATE TABLE IF NOT EXISTS payslips (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        month TEXT NOT NULL,
+        file_path TEXT NOT NULL,
+        uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+    )";
+
+    // 7. Investment Plans Table
+    $queries[] = "CREATE TABLE IF NOT EXISTS investment_plans (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        name TEXT NOT NULL,
+        category TEXT DEFAULT 'Other',
+        type TEXT CHECK(type IN ('Monthly', 'Quarterly', 'Yearly')) NOT NULL,
+        amount REAL NOT NULL,
+        tenure_months INTEGER,
+        paid_count INTEGER DEFAULT 0,
+        start_date DATE NOT NULL,
+        status TEXT CHECK(status IN ('Active', 'Closed', 'Completed')) DEFAULT 'Active',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )";
+
+    // Execute creation queries
+    foreach ($queries as $q) {
+        $pdo->exec($q);
+    }
+
+    // Migration: Add columns if they don't exist
+    $tables = ['income', 'expenses', 'investments', 'loans', 'credit_accounts', 'emis', 'investment_plans'];
+    foreach ($tables as $table) {
+        // Check if columns exist
+        $cols = $pdo->query("PRAGMA table_info($table)")->fetchAll();
+        $existingCols = array_column($cols, 'name');
+        
+        if (!in_array('user_id', $existingCols)) {
+            try { $pdo->exec("ALTER TABLE $table ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE"); } catch (Exception $e) {}
+        }
+        
+        if ($table === 'investment_plans' && !in_array('category', $existingCols)) {
+            try { $pdo->exec("ALTER TABLE investment_plans ADD COLUMN category TEXT DEFAULT 'Other'"); } catch (Exception $e) {}
+        }
+
+        if ($table === 'investments') {
+            if (!in_array('plan_id', $existingCols)) {
+                try { $pdo->exec("ALTER TABLE investments ADD COLUMN plan_id INTEGER"); } catch (Exception $e) {}
+            }
+            if (!in_array('expense_id', $existingCols)) {
+                try { $pdo->exec("ALTER TABLE investments ADD COLUMN expense_id INTEGER"); } catch (Exception $e) {}
+            }
+        }
+
+        if ($table === 'expenses') {
+            if (!in_array('converted_to_emi', $existingCols)) {
+                try { $pdo->exec("ALTER TABLE expenses ADD COLUMN converted_to_emi INTEGER DEFAULT 0"); } catch (Exception $e) {}
+            }
+        }
+
+        if ($table === 'emis') {
+            if (!in_array('payment_method', $existingCols)) {
+                try { $pdo->exec("ALTER TABLE emis ADD COLUMN payment_method TEXT"); } catch (Exception $e) {}
+            }
+        }
+
+        if ($table === 'loans') {
+            if (!in_array('source_institution', $existingCols)) {
+                try { $pdo->exec("ALTER TABLE loans ADD COLUMN source_institution TEXT"); } catch (Exception $e) {}
+            }
+            if (!in_array('tenure_months', $existingCols)) {
+                try { $pdo->exec("ALTER TABLE loans ADD COLUMN tenure_months INTEGER DEFAULT 0"); } catch (Exception $e) {}
+            }
+            if (!in_array('paid_amount', $existingCols)) {
+                try { $pdo->exec("ALTER TABLE loans ADD COLUMN paid_amount REAL DEFAULT 0"); } catch (Exception $e) {}
+            }
+            if (!in_array('emi_amount', $existingCols)) {
+                try { $pdo->exec("ALTER TABLE loans ADD COLUMN emi_amount REAL DEFAULT 0"); } catch (Exception $e) {}
+            }
+            if (!in_array('interest_rate', $existingCols)) {
+                try { $pdo->exec("ALTER TABLE loans ADD COLUMN interest_rate REAL DEFAULT 0"); } catch (Exception $e) {}
+            }
+            if (!in_array('paid_months', $existingCols)) {
+                try { $pdo->exec("ALTER TABLE loans ADD COLUMN paid_months INTEGER DEFAULT 0"); } catch (Exception $e) {}
+            }
+            if (!in_array('sanction_doc', $existingCols)) {
+                try { $pdo->exec("ALTER TABLE loans ADD COLUMN sanction_doc TEXT"); } catch (Exception $e) {}
+            }
+            if (!in_array('clearance_doc', $existingCols)) {
+                try { $pdo->exec("ALTER TABLE loans ADD COLUMN clearance_doc TEXT"); } catch (Exception $e) {}
+            }
+            if (!in_array('loan_account_no', $existingCols)) {
+                try { $pdo->exec("ALTER TABLE loans ADD COLUMN loan_account_no TEXT"); } catch (Exception $e) {}
+            }
+            // type is already in the CREATE TABLE but for existing DBs we might need a more flexible check
+            // However, the original 'type' was CHECK(type IN ('Lent', 'Borrowed')). 
+            // We might need to handle 'Institutional' if we want to change the constraint, 
+            // but SQLite doesn't support changing constraints easily. 
+            // We'll just use 'Borrowed' for Institutional loans and use source_institution to distinguish.
+        }
+    }
+}
+
+// Auto-run init on include (for simplicity in this self-contained app)
+initDb($pdo);
+?>

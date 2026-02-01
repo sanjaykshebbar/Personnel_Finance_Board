@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  expense-tracker:
+    build: .
+    image: sanjaykshebbar/expense-tracker:latest
+    container_name: expense-tracker
+    ports:
+      - "8080:80"
+    volumes:
+      - ./db:/var/www/html/db
+      - ./uploads:/var/www/html/uploads
+    restart: unless-stopped
+    environment:
+      - TZ=GMT

@@ -1,0 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom Overrides can go here if you use the Tailwind CLI to build. 
+   Currently, the system uses the Play CDN in header.php for zero-config usage. 
+*/

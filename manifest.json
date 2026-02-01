@@ -1,0 +1,17 @@
+{
+  "name": "Finance Board",
+  "short_name": "Finance",
+  "description": "Premium self-hosted personal finance tracker.",
+  "start_url": "index.php",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#4f46e5",
+  "icons": [
+    {
+      "src": "assets/app_icon_512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
