@@ -4,7 +4,6 @@ require_once '../includes/auth.php';
 requireLogin();
 
 $userId = getCurrentUserId();
-$cutoffDate = '2026-01-01';
 
 $categories = ['Mutual Fund', 'Stocks', 'Fixed Deposit', 'Gold', 'Crypto', 'PF/PPF', 'Insurance', 'Savings', 'Other'];
 
@@ -310,7 +309,7 @@ foreach ($plans as $plan) {
                                 <?php echo $plan['category']; ?> • <?php echo $plan['type']; ?>
                             </span>
                             <h3 class="text-lg font-bold text-gray-900 mt-1"><?php echo htmlspecialchars($plan['name']); ?></h3>
-                            <?php if ($plan['start_date'] < $cutoffDate): ?>
+                            <?php if ($plan['start_date'] < SYSTEM_START_DATE): ?>
                                 <span class="inline-block px-1.5 py-0.5 bg-amber-50 text-amber-600 rounded text-[8px] font-bold uppercase tracking-widest border border-amber-100">Reference Only (Pre-Active)</span>
                             <?php endif; ?>
                         </div>

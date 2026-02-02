@@ -9,7 +9,6 @@ require_once '../includes/header.php';
 $userId = getCurrentUserId();
 $currentYear = $_GET['year'] ?? date('Y');
 $focusMonth = $_GET['month'] ?? date('Y-m');
-$cutoffDate = '2026-01-01';
 
 // Synchronization Logic: Ensure focus month year matches the selected year view
 if (substr($focusMonth, 0, 4) !== (string)$currentYear) {
@@ -42,19 +41,19 @@ foreach ($monthNames as $m => $name) {
         SELECT SUM(amount) as total 
         FROM (
             SELECT amount FROM expenses 
-            WHERE strftime('%Y-%m', date) = ? AND date >= ? AND user_id = ? AND converted_to_emi = 0
+            WHERE strftime('%Y-%m', date) = ? AND date >= '" . SYSTEM_START_DATE . "' AND user_id = ? AND converted_to_emi = 0
             UNION ALL
             SELECT emi_amount as amount FROM emis
             WHERE user_id = ? AND status = 'Active' 
             AND start_date <= ? AND date(start_date, '+' || tenure_months || ' months') > ?
-            AND start_date >= ?
+            AND start_date >= '" . SYSTEM_START_DATE . "'
         )
     ");
-    $trendStmt->execute([$mFull, $cutoffDate, $userId, $userId, $mEnd, $mStart, $cutoffDate]);
+    $trendStmt->execute([$mFull, $userId, $userId, $mEnd, $mStart]);
     $mExpense = $trendStmt->fetchColumn() ?? 0;
 
     // Fetch Total Income for month (Cutoff)
-    $incStmt = $pdo->prepare("SELECT SUM(total_income) FROM income WHERE month = ? AND user_id = ? AND month >= '2026-01'");
+    $incStmt = $pdo->prepare("SELECT SUM(total_income) FROM income WHERE month = ? AND user_id = ? AND accounting_date >= '" . SYSTEM_START_DATE . "'");
     $incStmt->execute([$mFull, $userId]);
     $mIncome = $incStmt->fetchColumn() ?? 0;
 
@@ -74,7 +73,7 @@ $fStart = $focusMonth . "-01";
 $fEnd = $focusMonth . "-31";
 
 // 1. Transactions In (Income)
-$incomeStmt = $pdo->prepare("SELECT * FROM income WHERE month = ? AND user_id = ? AND month >= '2026-01'");
+$incomeStmt = $pdo->prepare("SELECT * FROM income WHERE month = ? AND user_id = ? AND accounting_date >= '" . SYSTEM_START_DATE . "'");
 $incomeStmt->execute([$focusMonth, $userId]);
 $focusIncomes = $incomeStmt->fetchAll();
 
@@ -85,16 +84,16 @@ $outStmt = $pdo->prepare("
         SELECT 
             CASE WHEN category = 'Investment' THEN 'Investment' ELSE 'Expense' END as type, 
             category, amount, date as tr_date, description FROM expenses 
-        WHERE strftime('%Y-%m', date) = ? AND date >= ? AND user_id = ? AND converted_to_emi = 0
+        WHERE strftime('%Y-%m', date) = ? AND date >= '" . SYSTEM_START_DATE . "' AND user_id = ? AND converted_to_emi = 0
         UNION ALL
         SELECT 'EMI/Bill' as type, 'Financial' as category, emi_amount as amount, ? || '-01' as tr_date, name as description FROM emis
         WHERE user_id = ? AND status = 'Active' 
         AND start_date <= ? AND date(start_date, '+' || tenure_months || ' months') > ?
-        AND start_date >= ?
+        AND start_date >= '" . SYSTEM_START_DATE . "'
     )
     ORDER BY tr_date DESC
 ");
-$outStmt->execute([$focusMonth, $cutoffDate, $userId, $focusMonth, $userId, $fEnd, $fStart, $cutoffDate]);
+$outStmt->execute([$focusMonth, $userId, $focusMonth, $userId, $fEnd, $fStart]);
 $focusOutgoings = $outStmt->fetchAll();
 
 $totalIn = array_sum(array_column($focusIncomes, 'total_income'));

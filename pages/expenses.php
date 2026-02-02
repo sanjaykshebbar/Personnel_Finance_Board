@@ -5,7 +5,6 @@ requireLogin();
 
 
 $userId = getCurrentUserId();
-$cutoffDate = '2026-01-01';
 
 // Load Payment Methods dynamically from credit_accounts + default options
 $paymentMethods = ['Bank Account', 'Cash']; // Default options
@@ -335,8 +334,8 @@ foreach($expenses as $e) {
                     <tr>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             <?php echo htmlspecialchars($row['date']); ?>
-                            <?php if ($row['date'] < $cutoffDate): ?>
-                                <div class="text-[8px] text-amber-600 font-bold uppercase">Reference Only</div>
+                            <?php if ($row['date'] < SYSTEM_START_DATE): ?>
+                                <div class="text-[8px] text-amber-600 font-bold uppercase">Reference Only (Pre-Active)</div>
                             <?php endif; ?>
                         </td>
                         <td class="px-6 py-4 text-sm text-gray-900">

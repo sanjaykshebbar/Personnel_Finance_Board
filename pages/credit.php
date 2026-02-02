@@ -4,7 +4,6 @@ require_once '../includes/auth.php';
 requireLogin();
 
 $userId = getCurrentUserId();
-$cutoffDate = '2026-01-01';
 
 // Handle POST BEFORE any output
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -76,12 +75,12 @@ if (isset($_GET['edit'])) {
 // Fetch Credit Accounts with Advanced Usage Calculation BEFORE header
 $stmt = $pdo->prepare("
     SELECT ca.*, 
-    (SELECT IFNULL(SUM(amount), 0) FROM expenses WHERE payment_method = ca.provider_name AND converted_to_emi = 0 AND user_id = ca.user_id AND date >= ?) as one_time_expenses,
-    (SELECT IFNULL(SUM(total_amount - (emi_amount * paid_months)), 0) FROM emis WHERE payment_method = ca.provider_name AND user_id = ca.user_id AND status = 'Active' AND start_date >= ?) as emi_outstanding
+    (SELECT IFNULL(SUM(amount), 0) FROM expenses WHERE payment_method = ca.provider_name AND converted_to_emi = 0 AND user_id = ca.user_id AND date >= '" . SYSTEM_START_DATE . "') as one_time_expenses,
+    (SELECT IFNULL(SUM(total_amount - (emi_amount * paid_months)), 0) FROM emis WHERE payment_method = ca.provider_name AND user_id = ca.user_id AND status = 'Active' AND start_date >= '" . SYSTEM_START_DATE . "') as emi_outstanding
     FROM credit_accounts ca 
     WHERE ca.user_id = ?
 ");
-$stmt->execute([$cutoffDate, $cutoffDate, $userId]);
+$stmt->execute([$userId]);
 $accounts = $stmt->fetchAll();
 
 // NOW load header (which outputs HTML)
