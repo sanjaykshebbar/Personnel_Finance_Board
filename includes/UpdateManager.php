@@ -297,7 +297,11 @@ class UpdateManager {
         
         // Step 2: Get current state
         $currentCommit = $this->getCurrentCommit();
+        $branch = $this->getCurrentBranch();
+        if ($branch === 'unknown' || $branch === 'N/A') $branch = 'master';
+        
         $this->log("Current commit: $currentCommit");
+        $this->log("Current branch: $branch");
         
         // Step 3: Backup system
         $backup = $this->createBackup();
