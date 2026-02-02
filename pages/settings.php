@@ -25,19 +25,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 // Add Uploads
-                $uploadDir = '../uploads/';
+                $uploadDir = '../uploads';
                 if (is_dir($uploadDir)) {
+                    $realUploadDir = realpath($uploadDir);
                     $files = new RecursiveIteratorIterator(
-                        new RecursiveDirectoryIterator($uploadDir),
+                        new RecursiveDirectoryIterator($realUploadDir, RecursiveDirectoryIterator::SKIP_DOTS),
                         RecursiveIteratorIterator::LEAVES_ONLY
                     );
 
                     foreach ($files as $name => $file) {
-                        if (!$file->isDir()) {
-                            $filePath = $file->getRealPath();
-                            $relativePath = 'uploads/' . substr($filePath, strlen(realpath($uploadDir)) + 1);
-                            $zip->addFile($filePath, $relativePath);
-                        }
+                        $filePath = $file->getRealPath();
+                        $relativePath = 'uploads/' . substr($filePath, strlen($realUploadDir) + 1);
+                        $zip->addFile($filePath, $relativePath);
                     }
                 }
 
@@ -71,27 +70,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $message = "Database restored successfully. ";
                         }
 
-                        // 2. Restore Uploads
-                        if (is_dir($extractPath . '/uploads/')) {
-                            $files = new RecursiveIteratorIterator(
-                                new RecursiveDirectoryIterator($extractPath . '/uploads/'),
-                                RecursiveIteratorIterator::LEAVES_ONLY
+                        // 2. Restore Uploads (Vault)
+                        // Note: We use the same recursive copy logic to ensure the vault is fully restored
+                        if (is_dir($extractPath . '/uploads')) {
+                            $src = $extractPath . '/uploads';
+                            $dst = '../uploads';
+                            
+                            // Ensure destination exists
+                            if (!is_dir($dst)) @mkdir($dst, 0777, true);
+                            
+                            $iterator = new RecursiveIteratorIterator(
+                                new RecursiveDirectoryIterator($src, RecursiveDirectoryIterator::SKIP_DOTS),
+                                RecursiveIteratorIterator::SELF_FIRST
                             );
-
-                            foreach ($files as $name => $file) {
-                                if (!$file->isDir()) {
-                                    $filePath = $file->getRealPath();
-                                    $relativePath = substr($filePath, strlen(realpath($extractPath . '/uploads/')) + 1);
-                                    $destPath = '../uploads/' . $relativePath;
-                                    
-                                    $destDir = dirname($destPath);
-                                    if (!is_dir($destDir)) mkdir($destDir, 0777, true);
-                                    
-                                    copy($filePath, $destPath);
+                            
+                            foreach ($iterator as $item) {
+                                $target = $dst . DIRECTORY_SEPARATOR . $iterator->getSubPathName();
+                                if ($item->isDir()) {
+                                    if (!is_dir($target)) @mkdir($target, 0777, true);
+                                } else {
+                                    copy($item->getRealPath(), $target);
                                 }
                             }
-                            $message .= "Uploads synced.";
+                            $message .= "Document Vault restored successfully.";
                         }
+                        
+                        // Cleanup temp
+                        $this_recursiveRemove = function($dir) use (&$this_recursiveRemove) {
+                            if (!is_dir($dir)) return;
+                            $files = array_diff(scandir($dir), array('.','..'));
+                            foreach ($files as $file) {
+                                (is_dir("$dir/$file")) ? $this_recursiveRemove("$dir/$file") : unlink("$dir/$file");
+                            }
+                            return rmdir($dir);
+                        };
+                        $this_recursiveRemove($extractPath);
                         
                         header("Location: settings.php?message=" . urlencode($message));
                         exit;
