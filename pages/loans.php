@@ -202,7 +202,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $pageTitle = 'Lending & Borrowing';
 require_once '../includes/header.php';
 
-$message = '';
+// --- Constants for accounting ---
+$cutoffDate = '2026-01-20';
+$monthShift = '+5 days';
 
 // Fetch
 // Fetch
@@ -226,7 +228,7 @@ $creditCards = $cardStmt->fetchAll();
 $totalLent = 0;
 $totalBorrowed = 0;
 foreach($loans as $l) {
-    if ($l['status'] === 'Pending') {
+    if ($l['status'] === 'Pending' && $l['date'] >= $cutoffDate) {
         $outstanding = $l['amount'] - ($l['paid_amount'] ?? 0);
         if ($l['type'] === 'Lent') $totalLent += $outstanding;
         else $totalBorrowed += $outstanding;
@@ -351,6 +353,9 @@ foreach($loans as $l) {
                     <div>
                         <div class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1"><?php echo $row['type'] === 'Lent' ? 'Invested with' : 'Liability to'; ?></div>
                         <h4 class="text-lg font-black text-gray-900 dark:text-white tracking-tight leading-none"><?php echo htmlspecialchars($row['person_name']); ?></h4>
+                        <?php if ($row['date'] < $cutoffDate): ?>
+                            <span class="mt-1 inline-block px-1.5 py-0.5 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 rounded text-[8px] font-bold uppercase tracking-widest border border-amber-100 dark:border-amber-900/30">Reference Only (Pre-Active)</span>
+                        <?php endif; ?>
                         <?php if(!empty($row['source_institution']) || !empty($row['loan_account_no'])): ?>
                             <div class="flex flex-wrap gap-2 mt-2">
                                 <?php if(!empty($row['source_institution'])): ?>

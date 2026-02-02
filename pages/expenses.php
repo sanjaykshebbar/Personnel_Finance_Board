@@ -5,6 +5,7 @@ requireLogin();
 
 
 $userId = getCurrentUserId();
+$cutoffDate = '2026-01-20';
 
 // Load Payment Methods dynamically from credit_accounts + default options
 $paymentMethods = ['Bank Account', 'Cash']; // Default options
@@ -190,7 +191,11 @@ $expenses = $stmt->fetchAll();
 
 // Calculate Total for view
 $totalView = 0;
-foreach($expenses as $e) $totalView += $e['amount'];
+foreach($expenses as $e) {
+    if ($e['date'] >= $cutoffDate) {
+        $totalView += $e['amount'];
+    }
+}
 ?>
 
 <div class="space-y-6">
@@ -312,7 +317,12 @@ foreach($expenses as $e) $totalView += $e['amount'];
                 <tbody class="divide-y divide-gray-200">
                     <?php foreach ($expenses as $row): ?>
                     <tr>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?php echo htmlspecialchars($row['date']); ?></td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <?php echo htmlspecialchars($row['date']); ?>
+                            <?php if ($row['date'] < $cutoffDate): ?>
+                                <div class="text-[8px] text-amber-600 font-bold uppercase">Reference Only</div>
+                            <?php endif; ?>
+                        </td>
                         <td class="px-6 py-4 text-sm text-gray-900">
                             <?php echo htmlspecialchars($row['description']); ?>
                             <div class="text-xs text-gray-400 mt-1">Paid via <?php echo htmlspecialchars($row['payment_method']); ?></div>

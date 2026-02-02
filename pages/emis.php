@@ -4,6 +4,7 @@ require_once '../includes/auth.php';
 requireLogin();
 
 $userId = getCurrentUserId();
+$cutoffDate = '2026-01-20';
 
 // Handle Actions (Add, Update, Delete)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -153,6 +154,9 @@ $providers = $stmt->fetchAll(PDO::FETCH_COLUMN);
                 <div class="flex justify-between items-start mb-4">
                     <div>
                         <h3 class="font-bold text-lg text-gray-900"><?php echo htmlspecialchars($emi['name']); ?></h3>
+                        <?php if ($emi['start_date'] < $cutoffDate): ?>
+                            <span class="inline-block px-1.5 py-0.5 bg-amber-50 text-amber-600 rounded text-[8px] font-bold uppercase tracking-widest border border-amber-100">Reference Only (Pre-Active)</span>
+                        <?php endif; ?>
                         <p class="text-xs text-gray-500">Started: <?php echo $startDate->format('M Y'); ?> • Ends: <?php echo $closureDate->format('M Y'); ?></p>
                     </div>
                     <div class="text-right">
