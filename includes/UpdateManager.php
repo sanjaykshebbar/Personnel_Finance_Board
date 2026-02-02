@@ -224,27 +224,56 @@ class UpdateManager {
     }
     
     /**
-     * Backup database
+     * Create a full backup (Database + Uploads)
      */
-    public function backupDatabase() {
-        if (!file_exists($this->dbPath)) {
-            $this->log('Database file not found, skipping backup', 'WARNING');
-            return ['success' => true, 'message' => 'No database to backup'];
-        }
-        
+    public function createBackup() {
         $timestamp = date('Ymd_His');
         $commit = $this->getCurrentCommit();
-        $backupFile = $this->backupDir . "/finance_{$timestamp}_{$commit}.db";
+        $backupFile = $this->backupDir . "/finance_full_{$timestamp}_{$commit}.zip";
         
-        $this->log("Creating database backup: $backupFile");
+        $this->log("Creating full backup: $backupFile");
         
-        if (copy($this->dbPath, $backupFile)) {
-            $this->log('Database backup completed successfully');
-            return ['success' => true, 'file' => $backupFile];
-        } else {
-            $this->log('Failed to create database backup', 'ERROR');
-            return ['success' => false, 'error' => 'Failed to copy database file'];
+        $zip = new ZipArchive();
+        if ($zip->open($backupFile, ZipArchive::CREATE) !== TRUE) {
+            $this->log('Failed to create ZIP backup', 'ERROR');
+            return ['success' => false, 'error' => 'Could not create ZIP file'];
         }
+
+        // Add Database
+        if (file_exists($this->dbPath)) {
+            $zip->addFile($this->dbPath, 'finance.db');
+            $this->log('Database added to backup');
+        }
+
+        // Add Uploads directory recursively
+        $uploadsDir = $this->appDir . '/uploads';
+        if (is_dir($uploadsDir)) {
+            $files = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($uploadsDir),
+                RecursiveIteratorIterator::LEAVES_ONLY
+            );
+
+            foreach ($files as $name => $file) {
+                if (!$file->isDir()) {
+                    $filePath = $file->getRealPath();
+                    $relativePath = 'uploads/' . substr($filePath, strlen(realpath($uploadsDir)) + 1);
+                    $zip->addFile($filePath, $relativePath);
+                }
+            }
+            $this->log('Uploads directory added to backup');
+        }
+
+        $zip->close();
+        
+        $this->log('Full system backup completed successfully');
+        return ['success' => true, 'file' => basename($backupFile)];
+    }
+
+    /**
+     * @deprecated Use createBackup instead
+     */
+    public function backupDatabase() {
+        return $this->createBackup();
     }
     
     /**
@@ -270,8 +299,8 @@ class UpdateManager {
         $currentCommit = $this->getCurrentCommit();
         $this->log("Current commit: $currentCommit");
         
-        // Step 3: Backup database
-        $backup = $this->backupDatabase();
+        // Step 3: Backup system
+        $backup = $this->createBackup();
         if (!$backup['success']) {
             return $backup;
         }
@@ -361,44 +390,67 @@ class UpdateManager {
         $backup = $backups[$backupIndex];
         $this->log("Selected backup: " . $backup['file']);
         
-        // Restore database
+        // Restore system from ZIP
         $backupPath = $this->backupDir . '/' . $backup['file'];
-        if (copy($backupPath, $this->dbPath)) {
-            $this->log('Database restored successfully');
+        $zip = new ZipArchive();
+        if ($zip->open($backupPath) === TRUE) {
+            $tempExtract = $this->backupDir . '/temp_restore_' . uniqid();
+            mkdir($tempExtract, 0777, true);
+            $zip->extractTo($tempExtract);
+            $zip->close();
+
+            // 1. Restore Database
+            if (file_exists($tempExtract . '/finance.db')) {
+                copy($tempExtract . '/finance.db', $this->dbPath);
+                $this->log('Database restored successfully');
+            }
+
+            // 2. Restore Uploads
+            if (is_dir($tempExtract . '/uploads')) {
+                $src = $tempExtract . '/uploads';
+                $dst = $this->appDir . '/uploads';
+                
+                // Use a helper method for recursive copy to ensure cross-platform compatibility
+                $this->recursiveCopy($src, $dst);
+                $this->log('Uploads restored successfully');
+            }
+
+            // Cleanup temp
+            $this->recursiveRemove($tempExtract);
+
+            // Rollback Git if commit is available
+            if (!empty($backup['commit']) && $this->isGitRepo()) {
+                $this->log("Rolling back Git to commit: " . $backup['commit']);
+                $output = [];
+                $returnVar = 0;
+                
+                $os = $this->getOS();
+                if ($os === 'windows') {
+                    $resetCmd = 'cd /d "' . $this->appDir . '" && git reset --hard ' . $backup['commit'];
+                    exec($resetCmd . ' 2>&1', $output, $returnVar);
+                } else {
+                    $this->execCommand('cd "' . $this->appDir . '" && git reset --hard ' . $backup['commit'], $output, $returnVar);
+                }
+                
+                if ($returnVar === 0) {
+                    $this->log('Git rollback completed');
+                } else {
+                    $this->log('Git rollback failed: ' . implode("\n", $output), 'WARNING');
+                }
+            }
+            
+            $this->log('========================================');
+            $this->log('Rollback completed successfully!');
+            $this->log('========================================');
+            
+            return [
+                'success' => true,
+                'backup' => $backup,
+                'log' => file_get_contents($this->logFile)
+            ];
         } else {
-            return ['success' => false, 'error' => 'Failed to restore database'];
+            return ['success' => false, 'error' => 'Failed to open backup ZIP'];
         }
-        
-        // Rollback Git if commit is available
-        if (!empty($backup['commit']) && $this->isGitRepo()) {
-            $this->log("Rolling back Git to commit: " . $backup['commit']);
-            $output = [];
-            $returnVar = 0;
-            
-            $os = $this->getOS();
-            if ($os === 'windows') {
-                $resetCmd = 'cd /d "' . $this->appDir . '" && git reset --hard ' . $backup['commit'];
-                exec($resetCmd . ' 2>&1', $output, $returnVar);
-            } else {
-                $this->execCommand('cd "' . $this->appDir . '" && git reset --hard ' . $backup['commit'], $output, $returnVar);
-            }
-            
-            if ($returnVar === 0) {
-                $this->log('Git rollback completed');
-            } else {
-                $this->log('Git rollback failed: ' . implode("\n", $output), 'WARNING');
-            }
-        }
-        
-        $this->log('========================================');
-        $this->log('Rollback completed successfully!');
-        $this->log('========================================');
-        
-        return [
-            'success' => true,
-            'backup' => $backup,
-            'log' => file_get_contents($this->logFile)
-        ];
     }
     
     /**
@@ -409,18 +461,22 @@ class UpdateManager {
             return [];
         }
         
-        $files = glob($this->backupDir . '/finance_*.db');
+        $files = glob($this->backupDir . '/finance_full_*.zip');
+        // Fallback for old .db backups
+        $oldFiles = glob($this->backupDir . '/finance_*.db');
+        $files = array_merge($files, $oldFiles);
         rsort($files); // Most recent first
         
         $backups = [];
         foreach ($files as $file) {
             $filename = basename($file);
-            if (preg_match('/finance_(\d{8}_\d{6})_([a-f0-9]+)\.db/', $filename, $matches)) {
+            if (preg_match('/finance_(?:full_)?(\d{8}_\d{6})_([a-f0-9]+)\.(db|zip)/', $filename, $matches)) {
                 $backups[] = [
                     'file' => $filename,
                     'timestamp' => DateTime::createFromFormat('Ymd_His', $matches[1])->format('Y-m-d H:i:s'),
                     'commit' => $matches[2],
-                    'size' => filesize($file)
+                    'size' => filesize($file),
+                    'type' => $matches[3]
                 ];
             }
         }
@@ -447,6 +503,38 @@ class UpdateManager {
         }
     }
     
+    /**
+     * Helper for recursive copy
+     */
+    private function recursiveCopy($src, $dst) {
+        if (!is_dir($dst)) @mkdir($dst, 0777, true);
+        $dir = opendir($src);
+        if ($dir) {
+            while(false !== ( $file = readdir($dir)) ) {
+                if (( $file != '.' ) && ( $file != '..' )) {
+                    if ( is_dir($src . '/' . $file) ) {
+                        $this->recursiveCopy($src . '/' . $file,$dst . '/' . $file);
+                    } else {
+                        copy($src . '/' . $file,$dst . '/' . $file);
+                    }
+                }
+            }
+            closedir($dir);
+        }
+    }
+
+    /**
+     * Helper for recursive remove
+     */
+    private function recursiveRemove($dir) {
+        if (!is_dir($dir)) return;
+        $files = array_diff(scandir($dir), array('.','..'));
+        foreach ($files as $file) {
+            (is_dir("$dir/$file")) ? $this->recursiveRemove("$dir/$file") : unlink("$dir/$file");
+        }
+        return rmdir($dir);
+    }
+
     /**
      * Get system information
      */
