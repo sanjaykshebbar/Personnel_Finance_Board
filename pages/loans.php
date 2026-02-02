@@ -203,8 +203,7 @@ $pageTitle = 'Lending & Borrowing';
 require_once '../includes/header.php';
 
 // --- Constants for accounting ---
-$cutoffDate = '2026-01-20';
-$monthShift = '+5 days';
+$cutoffDate = '2026-01-01';
 
 // Fetch
 // Fetch

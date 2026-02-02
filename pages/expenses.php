@@ -5,7 +5,7 @@ requireLogin();
 
 
 $userId = getCurrentUserId();
-$cutoffDate = '2026-01-20';
+$cutoffDate = '2026-01-01';
 
 // Load Payment Methods dynamically from credit_accounts + default options
 $paymentMethods = ['Bank Account', 'Cash']; // Default options

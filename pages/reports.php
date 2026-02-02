@@ -9,8 +9,7 @@ require_once '../includes/header.php';
 $userId = getCurrentUserId();
 $currentYear = $_GET['year'] ?? date('Y');
 $focusMonth = $_GET['month'] ?? date('Y-m');
-$cutoffDate = '2026-01-20';
-$monthShift = '+5 days';
+$cutoffDate = '2026-01-01';
 
 // Synchronization Logic: Ensure focus month year matches the selected year view
 if (substr($focusMonth, 0, 4) !== (string)$currentYear) {
@@ -43,7 +42,7 @@ foreach ($monthNames as $m => $name) {
         SELECT SUM(amount) as total 
         FROM (
             SELECT amount FROM expenses 
-            WHERE date(date, ?) LIKE ? AND date >= ? AND user_id = ? AND converted_to_emi = 0
+            WHERE strftime('%Y-%m', date) = ? AND date >= ? AND user_id = ? AND converted_to_emi = 0
             UNION ALL
             SELECT emi_amount as amount FROM emis
             WHERE user_id = ? AND status = 'Active' 
@@ -51,7 +50,7 @@ foreach ($monthNames as $m => $name) {
             AND start_date >= ?
         )
     ");
-    $trendStmt->execute([$monthShift, $mFull . '%', $cutoffDate, $userId, $userId, $mEnd, $mStart, $cutoffDate]);
+    $trendStmt->execute([$mFull, $cutoffDate, $userId, $userId, $mEnd, $mStart, $cutoffDate]);
     $mExpense = $trendStmt->fetchColumn() ?? 0;
 
     // Fetch Total Income for month (Cutoff)
@@ -86,7 +85,7 @@ $outStmt = $pdo->prepare("
         SELECT 
             CASE WHEN category = 'Investment' THEN 'Investment' ELSE 'Expense' END as type, 
             category, amount, date as tr_date, description FROM expenses 
-        WHERE date(date, ?) LIKE ? AND date >= ? AND user_id = ? AND converted_to_emi = 0
+        WHERE strftime('%Y-%m', date) = ? AND date >= ? AND user_id = ? AND converted_to_emi = 0
         UNION ALL
         SELECT 'EMI/Bill' as type, 'Financial' as category, emi_amount as amount, ? || '-01' as tr_date, name as description FROM emis
         WHERE user_id = ? AND status = 'Active' 
@@ -95,7 +94,7 @@ $outStmt = $pdo->prepare("
     )
     ORDER BY tr_date DESC
 ");
-$outStmt->execute([$monthShift, $focusMonth . '%', $cutoffDate, $userId, $focusMonth, $userId, $fEnd, $fStart, $cutoffDate]);
+$outStmt->execute([$focusMonth, $cutoffDate, $userId, $focusMonth, $userId, $fEnd, $fStart, $cutoffDate]);
 $focusOutgoings = $outStmt->fetchAll();
 
 $totalIn = array_sum(array_column($focusIncomes, 'total_income'));

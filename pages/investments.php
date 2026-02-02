@@ -4,7 +4,7 @@ require_once '../includes/auth.php';
 requireLogin();
 
 $userId = getCurrentUserId();
-$cutoffDate = '2026-01-20';
+$cutoffDate = '2026-01-01';
 
 $categories = ['Mutual Fund', 'Stocks', 'Fixed Deposit', 'Gold', 'Crypto', 'PF/PPF', 'Insurance', 'Savings', 'Other'];
 

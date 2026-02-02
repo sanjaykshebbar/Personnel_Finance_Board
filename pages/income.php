@@ -4,7 +4,7 @@ require_once '../includes/auth.php';
 requireLogin();
 
 $userId = getCurrentUserId();
-$cutoffDate = '2026-01-20';
+$cutoffDate = '2026-01-01';
 
 // Handle Form Submission BEFORE any output
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
