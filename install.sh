@@ -71,35 +71,55 @@ update_packages() {
 install_dependencies() {
     print_header "Installing Dependencies"
     
+    # Try to detect installed PHP version first, otherwise fallback to default
+    if command -v php >/dev/null 2>&1; then
+        DETECTED_PHP=$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')
+        print_msg "Detected existing PHP version: $DETECTED_PHP"
+        PHP_VERSION=$DETECTED_PHP
+    fi
+
     PACKAGES=(
         "git"
+        "sqlite3"
+        "curl"
+        "unzip"
+        "php-sqlite3"
+        "php-mbstring"
+        "php-xml"
+        "php-curl"
+        "php-zip"
         "php${PHP_VERSION}"
-        "php${PHP_VERSION}-cli"
         "php${PHP_VERSION}-sqlite3"
         "php${PHP_VERSION}-mbstring"
         "php${PHP_VERSION}-xml"
         "php${PHP_VERSION}-curl"
-        "sqlite3"
-        "curl"
-        "unzip"
+        "php${PHP_VERSION}-zip"
     )
     
-    print_msg "Installing: ${PACKAGES[*]}"
+    print_msg "Checking and installing required packages..."
     
+    # Build a list of missing packages
+    MISSING_PACKAGES=()
     for package in "${PACKAGES[@]}"; do
-        if dpkg -l | grep -q "^ii  $package "; then
-            print_msg "$package is already installed"
-        else
-            print_msg "Installing $package..."
-            apt-get install -y -qq "$package" || {
-                print_warning "Failed to install $package, trying alternative..."
-                # Try without version number for packages like git, sqlite3
-                apt-get install -y -qq "${package%%${PHP_VERSION}*}" 2>/dev/null || true
-            }
+        if ! dpkg -l | grep -q "^ii  $package "; then
+            MISSING_PACKAGES+=("$package")
         fi
     done
+
+    if [ ${#MISSING_PACKAGES[@]} -eq 0 ]; then
+        print_msg "All dependencies are already installed"
+    else
+        print_msg "Installing: ${MISSING_PACKAGES[*]}"
+        apt-get install -y -qq "${MISSING_PACKAGES[@]}" || {
+            print_warning "Batch installation failed, trying individual packages..."
+            for pkg in "${MISSING_PACKAGES[@]}"; do
+                print_msg "Installing $pkg..."
+                apt-get install -y -qq "$pkg" || print_warning "Couldn't install $pkg (may be optional or handled by another package)"
+            done
+        }
+    fi
     
-    print_msg "All dependencies installed"
+    print_msg "Dependency check completed"
 }
 
 # Clone or update repository
