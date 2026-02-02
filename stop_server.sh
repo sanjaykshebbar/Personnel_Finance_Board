@@ -21,7 +21,7 @@ else
     echo "Attempting to find and stop PHP server on port 8000..."
     
     # Try to kill by process name
-    pkill -f 'php -S localhost:8000'
+    pkill -f 'php -S 0.0.0.0:8000'
     
     if [ $? -eq 0 ]; then
         echo "Server stopped successfully"
