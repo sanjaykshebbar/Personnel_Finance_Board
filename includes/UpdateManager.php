@@ -320,37 +320,35 @@ class UpdateManager {
             $this->execCommand('cd "' . $this->appDir . '" && git stash push -m "Auto-stash before update"', $output, $returnVar);
         }
         
-        // Step 5: Pull latest changes
-        $this->log('Pulling latest changes from remote...');
+        // Step 5: Update to latest commits from remote
+        $this->log('Fetching latest changes and resetting to origin/' . $branch . '...');
         $output = [];
-        $branch = $this->getCurrentBranch();
         
         if ($os === 'windows') {
-            // Windows: execute git pull directly in the app directory
-            $pullCmd = 'cd /d "' . $this->appDir . '" && git pull origin ' . $branch;
-            exec($pullCmd . ' 2>&1', $output, $returnVar);
+            // Windows: fetch and reset hard to ensure local matches remote tip
+            $updateCmd = 'cd /d "' . $this->appDir . '" && git fetch origin && git reset --hard origin/' . $branch;
+            exec($updateCmd . ' 2>&1', $output, $returnVar);
             $success = ($returnVar === 0);
         } else {
-            $success = $this->execCommand('cd "' . $this->appDir . '" && git pull origin ' . $branch, $output, $returnVar);
+            // Linux: fetch and reset hard to ensure local matches remote tip
+            $this->execCommand('cd "' . $this->appDir . '" && git fetch origin && git reset --hard origin/' . $branch, $output, $returnVar);
+            $success = ($returnVar === 0);
         }
         
         if (!$success) {
-            $this->log('Failed to pull changes: ' . implode("\n", $output), 'ERROR');
-            $this->log('Rolling back...', 'WARNING');
-            
-            // Rollback
+            $this->log('Failed to update code: ' . implode("\n", $output), 'ERROR');
+            $this->log('Attempting to restore original state...', 'WARNING');
+            // Rollback only code to previous commit if update failed
             if ($os === 'windows') {
-                $resetCmd = 'cd /d "' . $this->appDir . '" && git reset --hard ' . $currentCommit;
-                exec($resetCmd . ' 2>&1', $output, $returnVar);
+                exec('cd /d "' . $this->appDir . '" && git reset --hard ' . $currentCommit . ' 2>&1');
             } else {
                 $this->execCommand('cd "' . $this->appDir . '" && git reset --hard ' . $currentCommit, $output, $returnVar);
             }
-            
-            return ['success' => false, 'error' => 'Failed to pull changes', 'output' => implode("\n", $output)];
+            return ['success' => false, 'error' => 'Failed to update code', 'output' => implode("\n", $output)];
         }
         
         $newCommit = $this->getCurrentCommit();
-        $this->log("Successfully updated to commit: $newCommit");
+        $this->log("Successfully updated to latest commit: $newCommit");
         
         // Step 6: Clean up old backups (keep last 10)
         $this->cleanupOldBackups();
