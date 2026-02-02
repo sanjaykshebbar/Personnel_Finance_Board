@@ -143,7 +143,6 @@ $totalLentPrincipal = 0;
 $totalLentReceived = 0;
 foreach($lentLoans as $l) {
     $totalLentPrincipal += $l['amount'];
-    $totalLentPrincipal += $l['amount'];
     if ($l['status'] === 'Settled') {
         $totalLentReceived += $l['amount'];
     } else {
