@@ -38,8 +38,8 @@ $investmentsCurrent = $stmt->fetch()['total'] ?? 0;
 
 // 4. Carry Forward (Previous Month Remaining Balance)
 // 4. Carry Forward (Previous Month Remaining Balance)
-$stmt = $pdo->prepare("SELECT SUM(total_income) FROM income WHERE month < ? AND month >= '2026-01' AND user_id = ?");
-$stmt->execute([$currentMonth, $userId]);
+$stmt = $pdo->prepare("SELECT SUM(total_income) FROM income WHERE month < ? AND accounting_date >= ? AND user_id = ?");
+$stmt->execute([$currentMonth, $cutoffDate, $userId]);
 $pastIncome = $stmt->fetchColumn() ?? 0;
 
 $stmt = $pdo->prepare("SELECT SUM(amount) FROM expenses WHERE date(date, ?) < ? AND date >= ? AND user_id = ?");
