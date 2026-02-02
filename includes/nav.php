@@ -13,6 +13,7 @@ $navItems = [
     ['name' => 'Reports', 'url' => $prefix . 'pages/reports.php', 'icon' => 'chart-pie'],
     ['name' => 'Credit', 'url' => $prefix . 'pages/credit.php', 'icon' => 'scale'],
     ['name' => 'Import', 'url' => $prefix . 'pages/upload.php', 'icon' => 'document-arrow-up'],
+    ['name' => 'System Update', 'url' => $prefix . 'pages/update.php', 'icon' => 'arrow-path'],
     ['name' => 'Maintenance', 'url' => $prefix . 'pages/settings.php', 'icon' => 'cog'],
 ];
 
@@ -61,6 +62,7 @@ if (!function_exists('isDataActive')) {
                             case 'scale': echo '⚖️'; break;
                             case 'document-arrow-up': echo '📂'; break;
                             case 'folder': echo '📁'; break;
+                            case 'arrow-path': echo '🔄'; break;
                             case 'cog': echo '⚙️'; break;
                             default: echo '•';
                         }
@@ -128,6 +130,7 @@ if (!function_exists('isDataActive')) {
                             case 'scale': echo '⚖️'; break;
                             case 'document-arrow-up': echo '📂'; break;
                             case 'folder': echo '📁'; break;
+                            case 'arrow-path': echo '🔄'; break;
                             case 'cog': echo '⚙️'; break;
                             default: echo '•';
                         }
