@@ -114,11 +114,32 @@ install_dependencies() {
             print_warning "Batch installation failed, trying individual packages..."
             for pkg in "${MISSING_PACKAGES[@]}"; do
                 print_msg "Installing $pkg..."
-                apt-get install -y -qq "$pkg" || print_warning "Couldn't install $pkg (may be optional or handled by another package)"
+                apt-get install -y -qq "$pkg" || print_warning "Couldn't install $pkg"
             done
         }
     fi
     
+    # Force enable the extension if the tool exists
+    if command -v phpenmod >/dev/null 2>&1; then
+        print_msg "Enabling PHP extensions..."
+        phpenmod sqlite3 pdo_sqlite mbstring xml curl zip 2>/dev/null || true
+    fi
+
+    # Verify if PDO SQLite is actually loaded
+    if php -m | grep -qi "pdo_sqlite"; then
+        print_msg "Verified: pdo_sqlite driver is loaded"
+    else
+        print_error "PDO SQLite driver is STILL NOT LOADED in CLI PHP"
+        print_warning "Attempting one last fix..."
+        apt-get install -y -qq php-sqlite3
+    fi
+    
+    # Restart the service if it's already installed to pick up new drivers
+    if systemctl is-active --quiet finance-board.service; then
+        print_msg "Restarting service to pick up new drivers..."
+        systemctl restart finance-board.service
+    fi
+
     print_msg "Dependency check completed"
 }
 
