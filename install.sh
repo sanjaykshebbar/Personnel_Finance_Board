@@ -121,17 +121,29 @@ install_dependencies() {
     
     # Force enable the extension if the tool exists
     if command -v phpenmod >/dev/null 2>&1; then
-        print_msg "Enabling PHP extensions..."
+        print_msg "Enabling PHP extensions using phpenmod..."
         phpenmod sqlite3 pdo_sqlite mbstring xml curl zip 2>/dev/null || true
     fi
+
+    # Manual uncomment in php.ini files as an extra safety measure
+    print_msg "Ensuring SQLite extensions are uncommented in php.ini..."
+    PHP_INI_FILES=$(find /etc/php -name "php.ini" 2>/dev/null || true)
+    for ini in $PHP_INI_FILES; do
+        if [ -f "$ini" ]; then
+            print_msg "Updating $ini..."
+            # Uncomment extension=pdo_sqlite and extension=sqlite3
+            sed -i 's/;extension=pdo_sqlite/extension=pdo_sqlite/g' "$ini"
+            sed -i 's/;extension=sqlite3/extension=sqlite3/g' "$ini"
+        fi
+    done
 
     # Verify if PDO SQLite is actually loaded
     if php -m | grep -qi "pdo_sqlite"; then
         print_msg "Verified: pdo_sqlite driver is loaded"
     else
         print_error "PDO SQLite driver is STILL NOT LOADED in CLI PHP"
-        print_warning "Attempting one last fix..."
-        apt-get install -y -qq php-sqlite3
+        print_warning "Attempting final package installation..."
+        apt-get install -y -qq php-sqlite3 php8.1-sqlite3 php8.2-sqlite3 php8.3-sqlite3 2>/dev/null || true
     fi
     
     # Restart the service if it's already installed to pick up new drivers
