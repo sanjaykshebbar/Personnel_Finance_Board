@@ -212,7 +212,7 @@ foreach($savingsBreakdown as $s) {
                 <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400">Carry Forward</h3>
                 <span class="p-2 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full text-sm">↪️</span>
             </div>
-            <p class="text-2xl font-bold text-gray-900 dark:text-white">₹<?php echo number_format($carryForward, 2); ?></p>
+            <p class="text-2xl font-bold <?php echo $carryForward < 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'; ?>">₹<?php echo number_format($carryForward, 2); ?></p>
         </div>
 
         <!-- Expenses -->

@@ -80,7 +80,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $pdo->beginTransaction();
 
                 // Update Principal/Installments
-                $stmt = $pdo->prepare("UPDATE loans SET paid_amount = paid_amount + ?, paid_months = paid_months + ? WHERE id = ? AND user_id = ?");
+                // FIXED: 'paid_months' from modal is the NEW ABSOLUTE TOTAL, not a delta to add.
+                $stmt = $pdo->prepare("UPDATE loans SET paid_amount = paid_amount + ?, paid_months = ? WHERE id = ? AND user_id = ?");
                 $stmt->execute([$amt, $months, $id, $userId]);
                 
                 // Check for Settlement (Status transition)
@@ -96,6 +97,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if ($loan['type'] === 'Borrowed') {
                         $desc = "Repayment: " . ($loan['person_name'] ?? 'Loan');
                         $method = $_POST['payment_method'] ?? 'Bank Account';
+                        if ($method === 'Credit Card' && !empty($_POST['credit_card_name'])) {
+                            $method = $_POST['credit_card_name']; // Use the specific card name
+                        }
                         $ins = $pdo->prepare("INSERT INTO expenses (user_id, date, category, description, amount, payment_method) VALUES (?, ?, 'EMI/Bills', ?, ?, ?)");
                         $ins->execute([$userId, $payDate, $desc, $amt, $method]);
 
@@ -212,6 +216,11 @@ $query .= "ORDER BY status ASC, date DESC";
 $stmt = $pdo->prepare($query);
 $stmt->execute([$userId]);
 $loans = $stmt->fetchAll();
+
+// Fetch Credit Accounts for the modal dropdown
+$cardStmt = $pdo->prepare("SELECT provider_name FROM credit_accounts WHERE user_id = ? ORDER BY provider_name ASC");
+$cardStmt->execute([$userId]);
+$creditCards = $cardStmt->fetchAll();
 
 // Calculate Totals (Pending only)
 $totalLent = 0;
@@ -449,11 +458,19 @@ foreach($loans as $l) {
                 <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Transaction Date</label>
                 <input type="date" name="payment_date" value="<?php echo date('Y-m-d'); ?>" required class="w-full bg-gray-50 dark:bg-gray-900 border-none rounded-xl p-3 text-sm font-bold focus:ring-2 focus:ring-brand-500 dark:text-white">
             </div>
-            <div>
-                <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Source Account</label>
-                <select name="payment_method" class="w-full bg-gray-50 dark:bg-gray-900 border-none rounded-xl p-3 text-sm font-bold focus:ring-2 focus:ring-brand-500 dark:text-white">
+                <select name="payment_method" id="modalPaymentMethod" onchange="toggleCardSelector()" class="w-full bg-gray-50 dark:bg-gray-900 border-none rounded-xl p-3 text-sm font-bold focus:ring-2 focus:ring-brand-500 dark:text-white">
                     <option value="Bank Account">Bank Account</option>
                     <option value="Credit Card">Credit Card</option>
+                    <option value="Cash">Cash</option>
+                </select>
+            </div>
+            <div id="cardSelector" class="hidden">
+                <label class="block text-[10px] font-black text-brand-600 uppercase tracking-widest mb-3">Select Credit Card</label>
+                <select name="credit_card_name" class="w-full bg-brand-50 dark:bg-brand-900/20 border-none rounded-xl p-3 text-sm font-bold focus:ring-2 focus:ring-brand-500 dark:text-white">
+                    <option value="">-- Choose Card --</option>
+                    <?php foreach ($creditCards as $card): ?>
+                        <option value="<?php echo htmlspecialchars($card['provider_name']); ?>"><?php echo htmlspecialchars($card['provider_name']); ?></option>
+                    <?php endforeach; ?>
                 </select>
             </div>
             <div class="flex justify-end space-x-4">
@@ -543,7 +560,21 @@ function openPayModal(id, current, total, emi, type, name, isInst) {
     const range = document.getElementById('paidRange');
     range.max = total || current + 12;
     range.value = current;
+    
+    // Reset Credit Card selector
+    document.getElementById('modalPaymentMethod').value = 'Bank Account';
+    toggleCardSelector();
+    
     document.getElementById('payModal').classList.remove('hidden');
+}
+function toggleCardSelector() {
+    const method = document.getElementById('modalPaymentMethod').value;
+    const selector = document.getElementById('cardSelector');
+    if (method === 'Credit Card') {
+        selector.classList.remove('hidden');
+    } else {
+        selector.classList.add('hidden');
+    }
 }
 function closePayModal() { document.getElementById('payModal').classList.add('hidden'); }
 
@@ -568,62 +599,6 @@ function closeUploadModal() { document.getElementById('uploadModal').classList.a
 }
 .animate-bounce-short { animation: bounceShort 2s infinite; }
 </style>
-
-<?php require_once '../includes/footer.php'; ?>
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>
-document.getElementById('loanType').addEventListener('change', function() {
-    const isInst = this.options[this.selectedIndex].dataset.institutional === 'true';
-    const advanced = document.getElementById('advancedFields');
-    if (isInst) {
-        advanced.classList.remove('hidden');
-    } else {
-        advanced.classList.add('hidden');
-    }
-});
-
-function calculateEMI() {
-    const p = parseFloat(document.getElementById('loanAmount').value) || 0;
-    const r = parseFloat(document.getElementById('loanInterest').value) || 0;
-    const n = parseInt(document.getElementById('loanTenure').value) || 0;
-    
-    if (p > 0 && n > 0) {
-        if (r > 0) {
-            const monthlyRate = (r / 100) / 12;
-            const emi = (p * monthlyRate * Math.pow(1 + monthlyRate, n)) / (Math.pow(1 + monthlyRate, n) - 1);
-            document.getElementById('loanEmi').value = emi.toFixed(2);
-        } else {
-            document.getElementById('loanEmi').value = (p / n).toFixed(2);
-        }
-    } else {
-        document.getElementById('loanEmi').value = 0;
-    }
-}
-
-['loanAmount', 'loanInterest', 'loanTenure'].forEach(id => {
-    document.getElementById(id).addEventListener('input', calculateEMI);
-});
-
-// Initialize Loan Progress Charts
-document.querySelectorAll('.loan-chart').forEach(canvas => {
-    const paid = parseInt(canvas.dataset.paid);
-    const pending = parseInt(canvas.dataset.pending);
-    
-    new Chart(canvas, {
-        type: 'pie',
-        data: {
-            datasets: [{
-                data: [paid, pending],
-                backgroundColor: ['#4f46e5', '#f3f4f6'],
-                borderWidth: 0
-            }]
-        },
-        options: {
-            cutout: '70%',
-            plugins: { tooltip: { enabled: false }, legend: { display: false } }
-        }
-    });
-});
 </script>
+
 <?php require_once '../includes/footer.php'; ?>
