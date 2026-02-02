@@ -22,7 +22,7 @@ A premium, lightweight personal finance dashboard built for high-performance and
 The fastest way to install on a fresh Linux server. This script installs dependencies, sets up the app, and configures everything for you.
 ```bash
 # Download and run the installer
-curl -sS https://raw.githubusercontent.com/sanjaykshebbar/Personnel_Finance_Board/main/install.sh | sudo bash
+curl -sS https://raw.githubusercontent.com/sanjaykshebbar/Personnel_Finance_Board/master/install.sh | sudo bash
 ```
 
 ### Option 2: Docker (Recommended)
