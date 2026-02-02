@@ -28,4 +28,7 @@ expense_debug.json
 .vscode/
 .gemini/
 brain/
-*.bat
+
+# Server runtime files
+server.log
+server.pid
