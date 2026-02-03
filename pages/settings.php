@@ -27,6 +27,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $error = "Sync Failed: " . $res['message'];
             }
+        } elseif ($_POST['action'] === 'trigger_sync') {
+            $sm = new SyncManager();
+            $res = $sm->triggerSync();
+            if ($res['status'] === 'success') {
+                $message = "Sync Report: <br>" . implode("<br>", $res['results']);
+            } else {
+                $error = "Sync Failed: " . $res['message'];
+            }
+        } elseif ($_POST['action'] === 'set_receiver_secret') {
+            $secret = trim($_POST['receiver_secret']);
+            if (!empty($secret)) {
+                $configDir = '../config';
+                if (!is_dir($configDir)) mkdir($configDir, 0755, true);
+                if (file_put_contents($configDir . '/sync_secret.txt', $secret)) {
+                    $message = "Receiver Secret Key updated successfully.";
+                } else {
+                    $error = "Failed to save secret key. Check permissions.";
+                }
+            } else {
+                $error = "Secret key cannot be empty.";
+            }
         } elseif ($_POST['action'] === 'backup') {
             $zipName = 'finance_backup_' . date('Y-m-d_H-i-s') . '.zip';
             $zipPath = sys_get_temp_dir() . '/' . $zipName;
@@ -287,10 +308,44 @@ require_once '../includes/header.php';
             <p class="mt-4 text-[10px] text-gray-400">
                 <strong>Setup:</strong> On the backup server, verify that <code>api/sync_receive.php</code> is accessible and create a <code>config/sync_secret.txt</code> file containing your secret key.
             </p>
+            <div class="mt-8 pt-8 border-t border-gray-100 dark:border-gray-700">
+                <h3 class="font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                    <span class="bg-purple-100 text-purple-600 p-1 rounded text-sm">🛡️</span> Receiver Node Configuration
+                </h3>
+                <div class="bg-white dark:bg-gray-900 p-6 rounded-xl border border-gray-200 dark:border-gray-700">
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                        If this server is a <strong>Backup Node</strong>, set the Secret Key here to allow the Primary Server to push data.
+                    </p>
+                    
+                    <?php 
+                    $hasSecret = file_exists('../config/sync_secret.txt');
+                    $currentSecret = $hasSecret ? trim(file_get_contents('../config/sync_secret.txt')) : '';
+                    ?>
+                    
+                    <form method="POST" class="flex gap-3 items-end">
+                        <input type="hidden" name="action" value="set_receiver_secret">
+                        <div class="flex-grow">
+                            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Receiver Secret Key</label>
+                            <input type="text" name="receiver_secret" value="<?php echo htmlspecialchars($currentSecret); ?>" required 
+                                   class="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 outline-none"
+                                   placeholder="Enter a strong secret key">
+                        </div>
+                        <button type="submit" class="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-bold transition shadow-sm whitespace-nowrap">
+                            Save Secret
+                        </button>
+                    </form>
+                    <?php if($hasSecret): ?>
+                        <div class="mt-3 flex items-center gap-2 text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-3 py-2 rounded">
+                            <span>✅ Active & Ready to Receive Data</span>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+
         </div>
 
         <div class="mt-12 pt-8 border-t border-gray-100 italic text-[10px] text-gray-400 text-center">
-            Finance Board v2.0.0 • Data is stored locally in SQLite and Uploads directory.
+            Finance Board v2.0.1 • Data is stored locally in SQLite and Uploads directory.
         </div>
     </div>
 </div>
