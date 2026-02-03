@@ -374,7 +374,7 @@ class UpdateManager {
     /**
      * Rollback to a previous backup
      */
-    public function rollback($backupIndex = 0) {
+    public function rollback($backupIndex = 0, $restoreData = true) {
         $this->log('========================================');
         $this->log('Starting Rollback Process');
         $this->log('========================================');
@@ -392,67 +392,75 @@ class UpdateManager {
         $backup = $backups[$backupIndex];
         $this->log("Selected backup: " . $backup['file']);
         
-        // Restore system from ZIP
-        $backupPath = $this->backupDir . '/' . $backup['file'];
-        $zip = new ZipArchive();
-        if ($zip->open($backupPath) === TRUE) {
-            $tempExtract = $this->backupDir . '/temp_restore_' . uniqid();
-            mkdir($tempExtract, 0777, true);
-            $zip->extractTo($tempExtract);
-            $zip->close();
-
-            // 1. Restore Database
-            if (file_exists($tempExtract . '/finance.db')) {
-                copy($tempExtract . '/finance.db', $this->dbPath);
-                $this->log('Database restored successfully');
-            }
-
-            // 2. Restore Uploads
-            if (is_dir($tempExtract . '/uploads')) {
-                $src = $tempExtract . '/uploads';
-                $dst = $this->appDir . '/uploads';
-                
-                // Use a helper method for recursive copy to ensure cross-platform compatibility
-                $this->recursiveCopy($src, $dst);
-                $this->log('Uploads restored successfully');
-            }
-
-            // Cleanup temp
-            $this->recursiveRemove($tempExtract);
-
-            // Rollback Git if commit is available
-            if (!empty($backup['commit']) && $this->isGitRepo()) {
-                $this->log("Rolling back Git to commit: " . $backup['commit']);
-                $output = [];
-                $returnVar = 0;
-                
-                $os = $this->getOS();
-                if ($os === 'windows') {
-                    $resetCmd = 'cd /d "' . $this->appDir . '" && git reset --hard ' . $backup['commit'];
-                    exec($resetCmd . ' 2>&1', $output, $returnVar);
-                } else {
-                    $this->execCommand('cd "' . $this->appDir . '" && git reset --hard ' . $backup['commit'], $output, $returnVar);
-                }
-                
-                if ($returnVar === 0) {
-                    $this->log('Git rollback completed');
-                } else {
-                    $this->log('Git rollback failed: ' . implode("\n", $output), 'WARNING');
-                }
-            }
+        // 1. Data Restore (Optional)
+        if ($restoreData) {
+            $this->log("Mode: Full Restore (Data + App)");
             
-            $this->log('========================================');
-            $this->log('Rollback completed successfully!');
-            $this->log('========================================');
-            
-            return [
-                'success' => true,
-                'backup' => $backup,
-                'log' => file_get_contents($this->logFile)
-            ];
+            // Restore system from ZIP
+            $backupPath = $this->backupDir . '/' . $backup['file'];
+            $zip = new ZipArchive();
+            if ($zip->open($backupPath) === TRUE) {
+                $tempExtract = $this->backupDir . '/temp_restore_' . uniqid();
+                mkdir($tempExtract, 0777, true);
+                $zip->extractTo($tempExtract);
+                $zip->close();
+
+                // 1. Restore Database
+                if (file_exists($tempExtract . '/finance.db')) {
+                    copy($tempExtract . '/finance.db', $this->dbPath);
+                    $this->log('Database restored successfully');
+                }
+
+                // 2. Restore Uploads
+                if (is_dir($tempExtract . '/uploads')) {
+                    $src = $tempExtract . '/uploads';
+                    $dst = $this->appDir . '/uploads';
+                    
+                    // Use a helper method for recursive copy to ensure cross-platform compatibility
+                    $this->recursiveCopy($src, $dst);
+                    $this->log('Uploads restored successfully');
+                }
+
+                // Cleanup temp
+                $this->recursiveRemove($tempExtract);
+            } else {
+                 return ['success' => false, 'error' => 'Failed to open backup ZIP'];
+            }
         } else {
-            return ['success' => false, 'error' => 'Failed to open backup ZIP'];
+            $this->log("Mode: Application Downgrade Only (Data Preserved)");
         }
+
+        // 2. Git Rollback (Common)
+        // Rollback Git if commit is available
+        if (!empty($backup['commit']) && $this->isGitRepo()) {
+            $this->log("Rolling back Git to commit: " . $backup['commit']);
+            $output = [];
+            $returnVar = 0;
+            
+            $os = $this->getOS();
+            if ($os === 'windows') {
+                $resetCmd = 'cd /d "' . $this->appDir . '" && git reset --hard ' . $backup['commit'];
+                exec($resetCmd . ' 2>&1', $output, $returnVar);
+            } else {
+                $this->execCommand('cd "' . $this->appDir . '" && git reset --hard ' . $backup['commit'], $output, $returnVar);
+            }
+            
+            if ($returnVar === 0) {
+                $this->log('Git rollback completed');
+            } else {
+                $this->log('Git rollback failed: ' . implode("\n", $output), 'WARNING');
+            }
+        }
+        
+        $this->log('========================================');
+        $this->log('Rollback completed successfully!');
+        $this->log('========================================');
+        
+        return [
+            'success' => true,
+            'backup' => $backup,
+            'log' => file_get_contents($this->logFile)
+        ];
     }
     
     /**

@@ -45,7 +45,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             break;
         case 'rollback':
             $backupIndex = intval($_POST['backup_index'] ?? 0);
-            $result = $updateManager->rollback($backupIndex);
+            $restoreData = isset($_POST['restore_data']) && $_POST['restore_data'] === '1';
+            $result = $updateManager->rollback($backupIndex, $restoreData);
             break;
         case 'check':
             $result = $updateManager->checkForUpdates();
@@ -253,8 +254,18 @@ require_once '../includes/header.php';
                     </label>
                     <?php endforeach; ?>
                 </div>
+                <div class="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-800">
+                    <label class="flex items-start gap-2 cursor-pointer">
+                        <input type="checkbox" name="restore_data" value="1" id="restoreDataCheck" class="mt-1">
+                        <div>
+                            <span class="block text-sm font-bold text-gray-900 dark:text-gray-100">Restore Data (Dangerous)</span>
+                            <span class="block text-xs text-gray-500 dark:text-gray-400">If checked, your <strong>Database & Uploads</strong> will be reverted to the state of this backup. Uncheck to only downgrade the application code.</span>
+                        </div>
+                    </label>
+                </div>
+
                 <button type="submit" class="w-full mt-4 bg-amber-600 text-white py-3 rounded-lg font-bold hover:bg-amber-700 transition">
-                    Rollback to Selected Version
+                    Perform Rollback
                 </button>
             </form>
             <?php else: ?>
@@ -274,7 +285,12 @@ function hideRollbackModal() {
 }
 
 function confirmRollback() {
-    return confirm('This will rollback the application to a previous version. Continue?');
+    const isDataRestore = document.getElementById('restoreDataCheck').checked;
+    if (isDataRestore) {
+        return confirm('WARNING: You have chosen to RESTORE DATA.\n\nThis will OVERWRITE your current database and files with old data.\n\nAre you sure you want to proceed?');
+    } else {
+        return confirm('This will downgrade the application code to the selected version.\n\nYour current Data (Database & Uploads) will remain UNTOUCHED.\n\nProceed?');
+    }
 }
 
 function showStatus(text) {
