@@ -386,8 +386,9 @@ foreach($loans as $l) {
                     </div>
                     
                     <?php if($row['emi_amount'] > 0): 
-                        $remAmt = $row['amount'] - $row['paid_amount'];
-                        $estMonths = ceil($remAmt / $row['emi_amount']);
+                        $remAmt = round($row['amount'] - $row['paid_amount'], 2);
+                        // If fully paid, force 0
+                        $estMonths = ($remAmt <= 0) ? 0 : ceil($remAmt / $row['emi_amount']);
                     ?>
                     <div class="text-center">
                         <span class="block text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Est. Left</span>
@@ -492,9 +493,9 @@ foreach($loans as $l) {
                     <?php endforeach; ?>
                 </select>
             </div>
-            <div class="flex justify-end space-x-4">
-                <button type="button" onclick="closePayModal()" class="px-6 py-3 text-gray-400 font-bold hover:text-gray-600 transition">Discard</button>
-                <button type="submit" class="px-8 py-3 bg-brand-600 text-white rounded-2xl font-black shadow-lg shadow-brand-500/20 hover:scale-105 transition">SECURE LOG</button>
+            <div class="flex justify-end items-center space-x-3 pt-4 border-t border-gray-100 dark:border-gray-700">
+                <button type="button" onclick="closePayModal()" class="px-5 py-2.5 rounded-xl text-xs font-bold text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700/50 transition">Discard</button>
+                <button type="submit" class="px-5 py-2.5 bg-gray-900 dark:bg-white dark:text-gray-900 text-white rounded-xl text-xs font-black tracking-wide shadow-lg shadow-gray-200 dark:shadow-none hover:scale-105 transition">SECURE LOG</button>
             </div>
         </form>
     </div>
