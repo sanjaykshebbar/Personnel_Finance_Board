@@ -115,7 +115,7 @@ $summarySavings = max(0, $summaryIncome - $summaryExpense);
 
 // 8. Loan Analytics
 // 8.1 Borrowed (Liabilities)
-$loanStmt = $pdo->prepare("SELECT amount, emi_amount, paid_months, tenure_months, status, paid_amount FROM loans WHERE user_id = ? AND type = 'Borrowed' AND date >= '" . SYSTEM_START_DATE . "'");
+$loanStmt = $pdo->prepare("SELECT amount, emi_amount, paid_months, tenure_months, status, paid_amount FROM loans WHERE user_id = ? AND type = 'Borrowed'");
 $loanStmt->execute([$userId]);
 $borrowedLoans = $loanStmt->fetchAll();
 
@@ -132,7 +132,7 @@ foreach($borrowedLoans as $l) {
 $borrowedRemaining = max(0, $totalBorrowedPrincipal - $totalBorrowedPaid);
 
 // 8.2 Lent (Receivables)
-$lentStmt = $pdo->prepare("SELECT amount, status, paid_amount FROM loans WHERE user_id = ? AND type = 'Lent' AND date >= '" . SYSTEM_START_DATE . "'");
+$lentStmt = $pdo->prepare("SELECT amount, status, paid_amount FROM loans WHERE user_id = ? AND type = 'Lent'");
 $lentStmt->execute([$userId]);
 $lentLoans = $lentStmt->fetchAll();
 

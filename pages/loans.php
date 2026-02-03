@@ -85,10 +85,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute([$amt, $months, $id, $userId]);
                 
                 // Check for Settlement (Status transition)
-                $chk = $pdo->prepare("SELECT amount, paid_amount FROM loans WHERE id = ?");
+                $chk = $pdo->prepare("SELECT amount, paid_amount, tenure_months, paid_months FROM loans WHERE id = ?");
                 $chk->execute([$id]);
                 $ln = $chk->fetch();
-                if ($ln && $ln['paid_amount'] >= $ln['amount']) {
+                
+                $isSettled = false;
+                if ($ln) {
+                    if ($ln['tenure_months'] > 0) {
+                        // EMI Loan: Check if all cycles cleared
+                        if ($ln['paid_months'] >= $ln['tenure_months']) {
+                            $isSettled = true;
+                        }
+                    } else {
+                        // Flat Loan: Check if principal fully repaid
+                        if ($ln['paid_amount'] >= $ln['amount']) {
+                            $isSettled = true;
+                        }
+                    }
+                }
+
+                if ($isSettled) {
                     $pdo->prepare("UPDATE loans SET status = 'Settled', settlement_date = ? WHERE id = ?")->execute([date('Y-m-d'), $id]);
                 }
 
@@ -227,7 +243,7 @@ $creditCards = $cardStmt->fetchAll();
 $totalLent = 0;
 $totalBorrowed = 0;
 foreach($loans as $l) {
-    if ($l['status'] === 'Pending' && $l['date'] >= SYSTEM_START_DATE) {
+    if ($l['status'] === 'Pending') {
         $outstanding = $l['amount'] - ($l['paid_amount'] ?? 0);
         if ($l['type'] === 'Lent') $totalLent += $outstanding;
         else $totalBorrowed += $outstanding;
