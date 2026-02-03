@@ -300,13 +300,13 @@ require_once '../includes/header.php';
                         <input type="text" name="node_name" placeholder="Name (e.g. Pi Backup)" required class="w-full md:w-auto flex-1 bg-white dark:bg-gray-900 border-none rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-blue-500">
                         <input type="url" name="node_url" placeholder="URL (http://192.168.1.5/app)" required class="w-full md:w-auto flex-[2] bg-white dark:bg-gray-900 border-none rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-blue-500">
                         <input type="password" name="node_secret" placeholder="Secret Key" required class="w-full md:w-auto flex-1 bg-white dark:bg-gray-900 border-none rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-blue-500">
-                        <button class="w-full md:w-auto px-4 py-2 bg-gray-900 dark:bg-gray-700 text-white rounded-lg text-xs font-bold hover:bg-black transition">Add Node</button>
+                        <button class="w-full md:w-auto px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-lg shadow-blue-500/30 transition uppercase tracking-wider">Add Node</button>
                     </form>
                 </div>
             </div>
             
             <p class="mt-4 text-[10px] text-gray-400">
-                <strong>Setup:</strong> On the backup server, verify that <code>api/sync_receive.php</code> is accessible and create a <code>config/sync_secret.txt</code> file containing your secret key.
+                <strong>Setup:</strong> To configure <em>this machine</em> as a Backup Node, scroll down to the <strong>Receiver Node Configuration</strong> section below.
             </p>
             <div class="mt-8 pt-8 border-t border-gray-100 dark:border-gray-700">
                 <h3 class="font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
