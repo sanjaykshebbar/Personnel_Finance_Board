@@ -1,6 +1,7 @@
 <?php
 require_once '../config/database.php';
 require_once '../includes/auth.php';
+require_once '../includes/SyncManager.php';
 requireLogin();
 
 $userId = getCurrentUserId();
@@ -10,7 +11,23 @@ $error = '';
 // Handle Actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['action'])) {
-        if ($_POST['action'] === 'backup') {
+        if ($_POST['action'] === 'add_node') {
+            $sm = new SyncManager();
+            $sm->addNode($_POST['node_name'], $_POST['node_url'], $_POST['node_secret']);
+            $message = "Backup node added successfully.";
+        } elseif ($_POST['action'] === 'remove_node') {
+            $sm = new SyncManager();
+            $sm->removeNode($_POST['node_id']);
+            $message = "Backup node removed.";
+        } elseif ($_POST['action'] === 'trigger_sync') {
+            $sm = new SyncManager();
+            $res = $sm->triggerSync();
+            if ($res['status'] === 'success') {
+                $message = "Sync Report: <br>" . implode("<br>", $res['results']);
+            } else {
+                $error = "Sync Failed: " . $res['message'];
+            }
+        } elseif ($_POST['action'] === 'backup') {
             $zipName = 'finance_backup_' . date('Y-m-d_H-i-s') . '.zip';
             $zipPath = sys_get_temp_dir() . '/' . $zipName;
             
@@ -195,6 +212,78 @@ require_once '../includes/header.php';
                     </button>
                 </form>
             </div>
+        </div>
+
+        <!-- High Availability Sync -->
+        <?php 
+        $sm = new SyncManager();
+        $nodes = $sm->getNodes();
+        ?>
+        <div class="mt-12">
+            <h3 class="font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                <span class="bg-blue-100 text-blue-600 p-1 rounded text-sm">📡</span> High Availability Sync Cluster
+            </h3>
+            
+            <div class="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+                <!-- Sync Trigger -->
+                <div class="p-4 bg-gray-50 dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
+                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                        Configured Nodes: <strong><?php echo count($nodes); ?></strong> (Max 6 recom.)
+                    </p>
+                    <form method="POST">
+                        <input type="hidden" name="action" value="trigger_sync">
+                        <button class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1">
+                            🚀 Trigger Sync Now
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Node List -->
+                <div class="divide-y divide-gray-100 dark:divide-gray-700">
+                    <?php if (empty($nodes)): ?>
+                        <div class="p-6 text-center text-sm text-gray-400 italic">No backup nodes configured. Add one below.</div>
+                    <?php else: ?>
+                        <?php foreach($nodes as $node): ?>
+                        <div class="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-800/50 transition">
+                            <div>
+                                <h4 class="font-bold text-sm text-gray-900 dark:text-white"><?php echo htmlspecialchars($node['name']); ?></h4>
+                                <div class="flex items-center gap-2 mt-1">
+                                    <span class="text-[10px] text-gray-400 font-mono"><?php echo htmlspecialchars($node['url']); ?></span>
+                                    <?php if($node['last_sync']): ?>
+                                        <span class="text-[9px] px-1.5 py-0.5 rounded bg-green-50 text-green-600 border border-green-100">Last: <?php echo $node['last_sync']; ?></span>
+                                    <?php else: ?>
+                                        <span class="text-[9px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">Never Synced</span>
+                                    <?php endif; ?>
+                                    <span class="text-[9px] px-1.5 py-0.5 rounded <?php echo $node['status'] === 'Online' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-50 text-red-500'; ?>">
+                                        <?php echo $node['status']; ?>
+                                    </span>
+                                </div>
+                            </div>
+                            <form method="POST" onsubmit="return confirm('Remove this node?');">
+                                <input type="hidden" name="action" value="remove_node">
+                                <input type="hidden" name="node_id" value="<?php echo $node['id']; ?>">
+                                <button class="text-xs text-red-300 hover:text-red-600 p-2 font-bold opacity-0 group-hover:opacity-100 transition">REMOVE</button>
+                            </form>
+                        </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </div>
+
+                <!-- Add Node Form -->
+                <div class="p-4 bg-gray-50 dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700">
+                    <form method="POST" class="flex flex-col md:flex-row gap-2 items-center">
+                        <input type="hidden" name="action" value="add_node">
+                        <input type="text" name="node_name" placeholder="Name (e.g. Pi Backup)" required class="w-full md:w-auto flex-1 bg-white dark:bg-gray-900 border-none rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-blue-500">
+                        <input type="url" name="node_url" placeholder="URL (http://192.168.1.5/app)" required class="w-full md:w-auto flex-[2] bg-white dark:bg-gray-900 border-none rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-blue-500">
+                        <input type="password" name="node_secret" placeholder="Secret Key" required class="w-full md:w-auto flex-1 bg-white dark:bg-gray-900 border-none rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-blue-500">
+                        <button class="w-full md:w-auto px-4 py-2 bg-gray-900 dark:bg-gray-700 text-white rounded-lg text-xs font-bold hover:bg-black transition">Add Node</button>
+                    </form>
+                </div>
+            </div>
+            
+            <p class="mt-4 text-[10px] text-gray-400">
+                <strong>Setup:</strong> On the backup server, verify that <code>api/sync_receive.php</code> is accessible and create a <code>config/sync_secret.txt</code> file containing your secret key.
+            </p>
         </div>
 
         <div class="mt-12 pt-8 border-t border-gray-100 italic text-[10px] text-gray-400 text-center">

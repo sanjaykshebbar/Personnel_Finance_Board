@@ -84,23 +84,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $pdo->prepare("UPDATE loans SET paid_amount = paid_amount + ?, paid_months = ? WHERE id = ? AND user_id = ?");
                 $stmt->execute([$amt, $months, $id, $userId]);
                 
-                // Check for Settlement (Status transition)
-                $chk = $pdo->prepare("SELECT amount, paid_amount, tenure_months, paid_months FROM loans WHERE id = ?");
-                $chk->execute([$id]);
-                $ln = $chk->fetch();
-                
                 $isSettled = false;
                 if ($ln) {
-                    if ($ln['tenure_months'] > 0) {
-                        // EMI Loan: Check if all cycles cleared
-                        if ($ln['paid_months'] >= $ln['tenure_months']) {
-                            $isSettled = true;
-                        }
-                    } else {
-                        // Flat Loan: Check if principal fully repaid
-                        if ($ln['paid_amount'] >= $ln['amount']) {
-                            $isSettled = true;
-                        }
+                    // Settlement is ALWAYS based on Amount (Zero Balance)
+                    // Tenure is for reference/calculation only.
+                    if ($ln['paid_amount'] >= $ln['amount']) {
+                        $isSettled = true;
                     }
                 }
 
@@ -395,6 +384,16 @@ foreach($loans as $l) {
                         <span class="block text-[9px] font-black text-brand-600 uppercase tracking-widest mb-1">Monthly EMI</span>
                         <p class="text-xl font-black text-brand-600">₹<?php echo number_format($row['emi_amount'], 0); ?></p>
                     </div>
+                    
+                    <?php if($row['emi_amount'] > 0): 
+                        $remAmt = $row['amount'] - $row['paid_amount'];
+                        $estMonths = ceil($remAmt / $row['emi_amount']);
+                    ?>
+                    <div class="text-center">
+                        <span class="block text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Est. Left</span>
+                        <p class="text-xl font-black text-gray-600 dark:text-gray-400"><?php echo max(0, $estMonths); ?> <span class="text-xs">mths</span></p>
+                    </div>
+                    <?php endif; ?>
                     <?php endif; ?>
                     
                     <!-- Progress (Unified Logic) -->
