@@ -1,7 +1,7 @@
 [
     {
-        "id": "698229f2c7fa9",
-        "name": "Pi Backup",
+        "id": "69822b286e1ed",
+        "name": "Pibackup",
         "url": "http:\/\/10.0.0.4:8000\/api\/sync_receive.php",
         "secret": "W1nd0vv$",
         "last_sync": null,
