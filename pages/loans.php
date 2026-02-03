@@ -84,11 +84,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $pdo->prepare("UPDATE loans SET paid_amount = paid_amount + ?, paid_months = ? WHERE id = ? AND user_id = ?");
                 $stmt->execute([$amt, $months, $id, $userId]);
                 
+                // Check for Settlement (Status transition)
+                $chk = $pdo->prepare("SELECT amount, paid_amount FROM loans WHERE id = ?");
+                $chk->execute([$id]);
+                $ln = $chk->fetch();
+
                 $isSettled = false;
                 if ($ln) {
                     // Settlement is ALWAYS based on Amount (Zero Balance)
-                    // Tenure is for reference/calculation only.
-                    if ($ln['paid_amount'] >= $ln['amount']) {
+                    if (round($ln['paid_amount'], 2) >= round($ln['amount'], 2)) {
                         $isSettled = true;
                     }
                 }
