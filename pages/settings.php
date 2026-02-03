@@ -222,6 +222,9 @@ require_once '../includes/header.php';
         <div class="mt-12">
             <h3 class="font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                 <span class="bg-blue-100 text-blue-600 p-1 rounded text-sm">📡</span> High Availability Sync Cluster
+                <a href="maintenance_sync.php" class="ml-auto text-xs font-medium text-blue-600 hover:underline flex items-center gap-1">
+                    How to Connect/Setup? <span>↗</span>
+                </a>
             </h3>
             
             <div class="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
@@ -287,7 +290,7 @@ require_once '../includes/header.php';
         </div>
 
         <div class="mt-12 pt-8 border-t border-gray-100 italic text-[10px] text-gray-400 text-center">
-            Finance Board v2.0 • Data is stored locally in SQLite and Uploads directory.
+            Finance Board v2.0.0 • Data is stored locally in SQLite and Uploads directory.
         </div>
     </div>
 </div>
