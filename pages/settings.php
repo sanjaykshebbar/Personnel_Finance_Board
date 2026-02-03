@@ -295,12 +295,12 @@ require_once '../includes/header.php';
 
                 <!-- Add Node Form -->
                 <div class="p-4 bg-gray-50 dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700">
-                    <form method="POST" class="flex flex-col md:flex-row gap-2 items-center">
+                    <form method="POST" class="flex flex-wrap gap-2 items-center">
                         <input type="hidden" name="action" value="add_node">
-                        <input type="text" name="node_name" placeholder="Name (e.g. Pi Backup)" required class="w-full md:w-auto flex-1 bg-white dark:bg-gray-900 border-none rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-blue-500">
-                        <input type="url" name="node_url" placeholder="URL (http://192.168.1.5/app)" required class="w-full md:w-auto flex-[2] bg-white dark:bg-gray-900 border-none rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-blue-500">
-                        <input type="password" name="node_secret" placeholder="Secret Key" required class="w-full md:w-auto flex-1 bg-white dark:bg-gray-900 border-none rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-blue-500">
-                        <button class="w-full md:w-auto px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-lg shadow-blue-500/30 transition uppercase tracking-wider">Add Node</button>
+                        <input type="text" name="node_name" placeholder="Name (e.g. Pi Backup)" required class="flex-grow min-w-[120px] bg-white dark:bg-gray-900 border-none rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-blue-500 shadow-sm">
+                        <input type="url" name="node_url" placeholder="URL (http://1.2.3.4/app)" required class="flex-[2] min-w-[200px] bg-white dark:bg-gray-900 border-none rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-blue-500 shadow-sm">
+                        <input type="password" name="node_secret" placeholder="Secret Key" required class="flex-grow min-w-[120px] bg-white dark:bg-gray-900 border-none rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-blue-500 shadow-sm">
+                        <button class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-lg shadow-blue-500/30 transition uppercase tracking-wider whitespace-nowrap flex-shrink-0 ml-auto">ADD NODE</button>
                     </form>
                 </div>
             </div>
