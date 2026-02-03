@@ -242,6 +242,14 @@ create_service() {
     print_header "Creating Systemd Service"
     
     SERVICE_FILE="/etc/systemd/system/finance-board.service"
+    PHP_BIN=$(which php)
+
+    if [ -z "$PHP_BIN" ]; then
+        print_error "PHP binary not found"
+        exit 1
+    fi
+
+    print_msg "Using PHP binary: $PHP_BIN"
     
     cat > "$SERVICE_FILE" << EOF
 [Unit]
@@ -253,7 +261,7 @@ Type=simple
 User=www-data
 Group=www-data
 WorkingDirectory=$INSTALL_DIR
-ExecStart=/usr/bin/php -S 0.0.0.0:8000 -t $INSTALL_DIR
+ExecStart=$PHP_BIN -S 0.0.0.0:8000 -t $INSTALL_DIR
 Restart=always
 RestartSec=3
 
@@ -271,6 +279,13 @@ EOF
 start_service() {
     print_header "Starting Finance Board"
     
+    # Check for port conflict and kill if necessary
+    if lsof -i :8000 -t >/dev/null 2>&1; then
+        print_warning "Port 8000 is in use. Attempting to free it..."
+        fuser -k 8000/tcp >/dev/null 2>&1 || true
+        sleep 1
+    fi
+
     systemctl start finance-board.service
     
     sleep 2
