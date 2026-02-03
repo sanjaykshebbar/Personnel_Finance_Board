@@ -27,14 +27,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $error = "Sync Failed: " . $res['message'];
             }
-        } elseif ($_POST['action'] === 'trigger_sync') {
-            $sm = new SyncManager();
-            $res = $sm->triggerSync();
-            if ($res['status'] === 'success') {
-                $message = "Sync Report: <br>" . implode("<br>", $res['results']);
-            } else {
-                $error = "Sync Failed: " . $res['message'];
-            }
         } elseif ($_POST['action'] === 'set_receiver_secret') {
             $secret = trim($_POST['receiver_secret']);
             if (!empty($secret)) {
@@ -47,6 +39,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             } else {
                 $error = "Secret key cannot be empty.";
+            }
+        } elseif ($_POST['action'] === 'refresh_status') {
+            $sm = new SyncManager();
+            $nodes = $sm->getNodes();
+            $results = [];
+            foreach ($nodes as $node) {
+                // Determine if we should check health
+                // Check all or just one? Let's check all on refresh.
+                $res = $sm->checkNodeHealth($node['id']);
+                // results is just for message
+            }
+            $message = "Node status refreshed.";
+        } elseif ($_POST['action'] === 'pull_from_node') {
+            $sm = new SyncManager();
+            $res = $sm->pullFromNode($_POST['node_id']);
+            if ($res['status'] === 'success') {
+                $message = "System Restored from Node: " . $res['message'];
+            } else {
+                $error = "Restore Failed: " . $res['message'];
             }
         } elseif ($_POST['action'] === 'backup') {
             $zipName = 'finance_backup_' . date('Y-m-d_H-i-s') . '.zip';
@@ -250,16 +261,24 @@ require_once '../includes/header.php';
             
             <div class="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
                 <!-- Sync Trigger -->
-                <div class="p-4 bg-gray-50 dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
+                <div class="p-4 bg-gray-50 dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center flex-wrap gap-2">
                     <p class="text-xs text-gray-500 dark:text-gray-400">
                         Configured Nodes: <strong><?php echo count($nodes); ?></strong> (Max 6 recom.)
                     </p>
-                    <form method="POST">
-                        <input type="hidden" name="action" value="trigger_sync">
-                        <button class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1">
-                            🚀 Trigger Sync Now
-                        </button>
-                    </form>
+                    <div class="flex gap-2">
+                        <form method="POST">
+                            <input type="hidden" name="action" value="refresh_status">
+                            <button class="px-3 py-1.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg text-xs font-bold transition flex items-center gap-1">
+                                🔄 Refresh Status
+                            </button>
+                        </form>
+                        <form method="POST">
+                            <input type="hidden" name="action" value="trigger_sync">
+                            <button class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-sm shadow-blue-500/20">
+                                🚀 Trigger Sync Now
+                            </button>
+                        </form>
+                    </div>
                 </div>
 
                 <!-- Node List -->
@@ -267,27 +286,52 @@ require_once '../includes/header.php';
                     <?php if (empty($nodes)): ?>
                         <div class="p-6 text-center text-sm text-gray-400 italic">No backup nodes configured. Add one below.</div>
                     <?php else: ?>
-                        <?php foreach($nodes as $node): ?>
-                        <div class="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-800/50 transition">
+                        <?php foreach($nodes as $node): 
+                            $isOnline = ($node['status'] ?? '') === 'Online';
+                            $lastSeenText = 'Never';
+                            if (!empty($node['last_seen'])) {
+                                $diff = time() - $node['last_seen'];
+                                if ($diff < 60) $lastSeenText = 'Just now';
+                                elseif ($diff < 3600) $lastSeenText = floor($diff/60) . 'm ago';
+                                else $lastSeenText = floor($diff/3600) . 'h ago';
+                            }
+                        ?>
+                        <div class="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-800/50 transition group">
                             <div>
-                                <h4 class="font-bold text-sm text-gray-900 dark:text-white"><?php echo htmlspecialchars($node['name']); ?></h4>
-                                <div class="flex items-center gap-2 mt-1">
-                                    <span class="text-[10px] text-gray-400 font-mono"><?php echo htmlspecialchars($node['url']); ?></span>
-                                    <?php if($node['last_sync']): ?>
-                                        <span class="text-[9px] px-1.5 py-0.5 rounded bg-green-50 text-green-600 border border-green-100">Last: <?php echo $node['last_sync']; ?></span>
-                                    <?php else: ?>
-                                        <span class="text-[9px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">Never Synced</span>
-                                    <?php endif; ?>
-                                    <span class="text-[9px] px-1.5 py-0.5 rounded <?php echo $node['status'] === 'Online' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-50 text-red-500'; ?>">
-                                        <?php echo $node['status']; ?>
+                                <h4 class="font-bold text-sm text-gray-900 dark:text-white flex items-center gap-2">
+                                    <?php echo htmlspecialchars($node['name']); ?>
+                                    <span class="text-[9px] px-1.5 py-0.5 rounded <?php echo $isOnline ? 'bg-emerald-100 text-emerald-600 border border-emerald-200' : 'bg-red-50 text-red-500 border border-red-100'; ?>">
+                                        <?php echo $isOnline ? '● Online' : '○ Offline'; ?>
                                     </span>
+                                </h4>
+                                <div class="flex items-center gap-3 mt-1.5">
+                                    <span class="text-[10px] text-gray-400 font-mono bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded"><?php echo htmlspecialchars($node['url']); ?></span>
+                                    
+                                    <span class="text-[10px] text-gray-400 flex items-center gap-1">
+                                        <span>👁️</span> <?php echo $lastSeenText; ?>
+                                    </span>
+                                    
+                                    <?php if($node['last_sync']): ?>
+                                        <span class="text-[10px] text-green-600 flex items-center gap-1">
+                                            <span>✓</span> Synced: <?php echo date('M j, H:i', strtotime($node['last_sync'])); ?>
+                                        </span>
+                                    <?php endif; ?>
                                 </div>
                             </div>
-                            <form method="POST" onsubmit="return confirm('Remove this node?');">
-                                <input type="hidden" name="action" value="remove_node">
-                                <input type="hidden" name="node_id" value="<?php echo $node['id']; ?>">
-                                <button class="text-xs text-red-300 hover:text-red-600 p-2 font-bold opacity-0 group-hover:opacity-100 transition">REMOVE</button>
-                            </form>
+                            <div class="flex items-center gap-2">
+                                <form method="POST" onsubmit="return confirm('⚠️ DANGER: This will OVERWRITE your local data with data from this backup node. Are you sure?');">
+                                    <input type="hidden" name="action" value="pull_from_node">
+                                    <input type="hidden" name="node_id" value="<?php echo $node['id']; ?>">
+                                    <button class="text-[10px] bg-white border border-gray-200 hover:border-amber-400 hover:text-amber-600 text-gray-400 px-2 py-1 rounded font-bold transition flex items-center gap-1" title="Restore System from this Node">
+                                        <span>↩️</span> RESTORE
+                                    </button>
+                                </form>
+                                <form method="POST" onsubmit="return confirm('Remove this node?');">
+                                    <input type="hidden" name="action" value="remove_node">
+                                    <input type="hidden" name="node_id" value="<?php echo $node['id']; ?>">
+                                    <button class="text-[10px] text-red-300 hover:text-red-600 hover:bg-red-50 p-1.5 rounded font-bold transition" title="Remove Node">🗑️</button>
+                                </form>
+                            </div>
                         </div>
                         <?php endforeach; ?>
                     <?php endif; ?>
@@ -345,7 +389,7 @@ require_once '../includes/header.php';
         </div>
 
         <div class="mt-12 pt-8 border-t border-gray-100 italic text-[10px] text-gray-400 text-center">
-            Finance Board v2.0.1 • Data is stored locally in SQLite and Uploads directory.
+            Finance Board v2.1.0 • Data is stored locally in SQLite and Uploads directory.
         </div>
     </div>
 </div>

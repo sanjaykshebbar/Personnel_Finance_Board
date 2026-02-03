@@ -86,14 +86,11 @@ $curPageName = 'settings.php'; // Keep active tab
                 <div>
                     <h4 class="font-bold text-sm mb-2">A. Create the Secret Key</h4>
                     <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                        On your <strong>Backup Server</strong>, create a file named <code class="text-indigo-600 font-bold">config/sync_secret.txt</code>.
+                        On your <strong>Backup Server</strong>, go to <strong class="text-purple-600">Settings &amp; Maintenance</strong>. <br>
+                        Scroll down to the <strong>Receiver Node Configuration</strong> section and enter a strong Secret Key (e.g., "MySecurePassword123").
                     </p>
-                    <div class="bg-gray-900 text-gray-300 p-4 rounded-xl text-xs font-mono overflow-x-auto">
-                        <span class="text-gray-500"># On Backup Server Terminal</span><br>
-                        cd /var/www/html/expense-tracker<br>
-                        mkdir -p config<br>
-                        echo "MySecurePassword123" > config/sync_secret.txt<br>
-                        chown www-data:www-data config/sync_secret.txt
+                    <div class="bg-purple-50 dark:bg-purple-900/10 border border-purple-100 dark:border-purple-900/30 p-4 rounded-xl text-xs text-purple-700 dark:text-purple-300">
+                        <strong>Why?</strong> This key acts as the password. The Primary Server will use this key to authenticate itself before pushing data.
                     </div>
                 </div>
 
@@ -119,22 +116,44 @@ $curPageName = 'settings.php'; // Keep active tab
             <div class="pl-8 border-l-2 border-gray-100 dark:border-gray-700 space-y-6">
                 <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
                     Return to this <strong>Settings Page</strong> and locate "High Availability Sync Cluster".
+                    You will use the <strong>Add Node</strong> form to register the Backup Node you just configured.
                 </p>
                 
                 <div class="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
-                    <h5 class="text-xs font-black uppercase tracking-widest text-gray-400 mb-4">Add Node Form</h5>
-                    <div class="space-y-3 text-sm">
+                    <h5 class="text-xs font-black uppercase tracking-widest text-gray-400 mb-4">Add Node Form Fields</h5>
+                    <div class="space-y-4 text-sm">
                         <div>
-                            <span class="font-mono text-xs block text-gray-500">Node Name</span>
-                            <strong>Living Room Pi</strong>
+                            <span class="font-bold block text-gray-700 dark:text-gray-300">1. Name</span>
+                            <p class="text-xs text-gray-500">A label for your own identification (e.g., "Living Room Pi" or "Backup PC").</p>
                         </div>
                         <div>
-                            <span class="font-mono text-xs block text-gray-500">Node URL</span>
-                            <code class="bg-gray-100 dark:bg-gray-900 px-1 rounded">http://192.168.1.50/expense-tracker</code>
+                            <span class="font-bold block text-gray-700 dark:text-gray-300">2. URL</span>
+                            <p class="text-xs text-gray-500 mb-1">
+                                The base web address of the backup app. The system will auto-append <code>api/sync_receive.php</code> for you.
+                            </p>
+                            <div class="space-y-2 text-xs">
+                                <div>
+                                    <span class="text-[10px] uppercase tracking-widest text-gray-400">Examples</span>
+                                </div>
+                                <div class="space-y-1">
+                                    <code class="bg-gray-100 dark:bg-gray-900 px-2 py-1 rounded">http://[IP_ADDRESS]:8000</code>
+                                    <code class="bg-gray-100 dark:bg-gray-900 px-2 py-1 rounded">http://[IP_ADDRESS]/expense-tracker</code>
+                                </div>
+                                <div class="text-[10px] text-gray-500">
+                                    Auto-generated endpoint: <code class="font-mono">/api/sync_receive.php</code>
+                                </div>
+                            </div>
                         </div>
                         <div>
-                            <span class="font-mono text-xs block text-gray-500">Secret Key</span>
-                            <code class="bg-gray-100 dark:bg-gray-900 px-1 rounded">MySecurePassword123</code> <span class="text-xs text-gray-400">(Must match config/sync_secret.txt)</span>
+                            <span class="font-bold block text-gray-700 dark:text-gray-300">3. Secret Key</span>
+                            <p class="text-xs text-gray-500">The <strong>exact same password</strong> you entered in the "Receiver Node Configuration" on the backup device.</p>
+                        </div>
+                        <div>
+                            <span class="font-bold block text-gray-700 dark:text-gray-300">4. Node Status</span>
+                            <p class="text-xs text-gray-500">
+                                After adding a node, click <strong>🔄 Refresh Status</strong> to send a heartbeat ping. You’ll see
+                                <span class="text-emerald-600">Online</span> or <span class="text-red-500">Offline</span> badges.
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -156,6 +175,23 @@ $curPageName = 'settings.php'; // Keep active tab
                         <li>Push the archive to all configured nodes in parallel.</li>
                         <li>The Backup Nodes will extract and overwrite their local data.</li>
                     </ul>
+                </p>
+            </div>
+        </section>
+
+        <!-- Step 4: Restore (Failover) -->
+        <section>
+            <h3 class="text-lg font-bold mb-4 flex items-center gap-2">
+                <span class="w-6 h-6 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center text-xs">5</span>
+                Restore from a Backup Node (Failover)
+            </h3>
+            <div class="pl-8 border-l-2 border-gray-100 dark:border-gray-700">
+                <p class="text-sm text-gray-600 dark:text-gray-400">
+                    If the Primary server goes down, you can work directly on the Backup Node. When the Primary is back,
+                    click <strong class="text-amber-600">↩️ RESTORE</strong> next to the node to pull the latest data back.
+                    <br><br>
+                    <span class="text-xs bg-amber-50 text-amber-600 px-2 py-1 rounded">Warning:</span>
+                    This action overwrites the Primary server’s local database and uploads with the Backup’s data.
                 </p>
             </div>
         </section>

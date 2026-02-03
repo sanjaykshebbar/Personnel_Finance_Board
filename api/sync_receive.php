@@ -8,6 +8,13 @@ require_once '../config/database.php'; // For any DB utils, mostly we need paths
 // Since this is a standalone entry point, define paths relative to this file
 $rootDir = realpath(__DIR__ . '/../');
 
+// 0. Heartbeat (Ping)
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['ping'])) {
+    header('Content-Type: text/plain');
+    echo "PONG";
+    exit;
+}
+
 // 1. Validation
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
