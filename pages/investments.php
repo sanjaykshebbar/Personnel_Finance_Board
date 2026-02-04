@@ -193,8 +193,9 @@ $colorPalette = [
 
 foreach ($plans as $plan) {
     // FIXED: Calculate paid value from history with date filter (Reference Only logic)
-    $valStmt = $pdo->prepare("SELECT SUM(amount) FROM investments WHERE plan_id = ? AND user_id = ? AND due_date >= ?");
-    $valStmt->execute([$plan['id'], $userId, $cutoffDate]);
+    // REPLACED $cutoffDate with SYSTEM_START_DATE
+    $valStmt = $pdo->prepare("SELECT SUM(amount) FROM investments WHERE plan_id = ? AND user_id = ? AND due_date >= '" . SYSTEM_START_DATE . "'");
+    $valStmt->execute([$plan['id'], $userId]);
     $realPaidVal = $valStmt->fetchColumn() ?: 0;
     
     if ($realPaidVal > 0) {
