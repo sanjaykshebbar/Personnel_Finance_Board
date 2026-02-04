@@ -210,11 +210,16 @@ require_once '../includes/header.php';
     <!-- Cards Grid -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <?php foreach ($accounts as $acc): 
-            // Total Used = Manual Base + Charged Expenses - Payments + EMI Outstanding
-            $currentUsed = $acc['used_amount'] + $acc['one_time_expenses'] - ($acc['bill_payments'] ?? 0) + $acc['emi_outstanding'];
+            // FIXED: Separation of Balance and Total Debt for clarity
+            // 1. Card Balance = Previous Manual Base + New Expenses - Bill Payments
+            $cardBalance = $acc['used_amount'] + $acc['one_time_expenses'] - ($acc['bill_payments'] ?? 0);
+            
+            // 2. Total Utilized/Liability = Card Balance + Future EMI Principal
+            $totalLiability = $cardBalance + $acc['emi_outstanding'];
+            
             $limit = $acc['credit_limit'];
-            $remaining = $limit - $currentUsed;
-            $percent = ($limit > 0) ? ($currentUsed / $limit) * 100 : 0;
+            $remaining = $limit - $totalLiability;
+            $percent = ($limit > 0) ? ($totalLiability / $limit) * 100 : 0;
             
             // UI Color Logic
             $statusColor = $percent > 85 ? 'text-red-600 dark:text-red-400' : ($percent > 60 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400');
@@ -241,7 +246,7 @@ require_once '../includes/header.php';
                 <!-- Pie Chart Container -->
                 <div class="w-20 h-20 flex-shrink-0">
                     <canvas id="credit-chart-<?php echo $acc['id']; ?>" class="credit-chart" 
-                            data-used="<?php echo $currentUsed; ?>" 
+                            data-used="<?php echo $totalLiability; ?>" 
                             data-rem="<?php echo max(0, $remaining); ?>"
                             data-color="<?php echo $chartColor; ?>"></canvas>
                 </div>
@@ -259,12 +264,14 @@ require_once '../includes/header.php';
 
             <div class="grid grid-cols-2 gap-4 pt-4 border-t border-gray-100 dark:border-gray-700">
                 <div>
-                    <div class="text-[10px] font-bold text-gray-400 uppercase text-center mb-1">Spent</div>
-                    <div class="text-sm font-bold text-gray-900 dark:text-white text-center">₹<?php echo number_format($currentUsed); ?></div>
+                    <div class="text-[10px] font-bold text-gray-400 uppercase text-center mb-1">Card Balance</div>
+                    <div class="text-sm font-bold text-gray-900 dark:text-white text-center">₹<?php echo number_format($cardBalance, 2); ?></div>
+                    <p class="text-[8px] text-gray-400 text-center leading-tight">Exp - Paid</p>
                 </div>
                 <div>
-                    <div class="text-[10px] font-bold text-gray-400 uppercase text-center mb-1">Available</div>
-                    <div class="text-sm font-bold text-emerald-600 dark:text-emerald-400 text-center">₹<?php echo number_format($remaining); ?></div>
+                    <div class="text-[10px] font-bold text-gray-400 uppercase text-center mb-1">Total Utilized</div>
+                    <div class="text-sm font-bold text-brand-600 dark:text-brand-400 text-center">₹<?php echo number_format($totalLiability, 2); ?></div>
+                    <p class="text-[8px] text-gray-400 text-center leading-tight">Incl. EMI Principal</p>
                 </div>
             </div>
             
