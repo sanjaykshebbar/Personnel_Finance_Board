@@ -1,0 +1,78 @@
+--- Users ---
+Array
+(
+    [0] => Array
+        (
+            [id] => 1
+            [name] => Sanjay KS
+            [email] => sanjaykshebbar@gmail.com
+            [password] => $2y$10$Ru/4PGkNlkNZa0Ibpq9eJOPQEzfeIraJVYqdau0oCfJqBgGq91/Qi
+            [created_at] => 2026-02-04 10:55:55
+        )
+
+)
+
+--- All Income ---
+Array
+(
+)
+
+--- All Expenses (Last 20) ---
+Array
+(
+)
+
+--- Table List ---
+Array
+(
+    [0] => Array
+        (
+            [name] => users
+        )
+
+    [1] => Array
+        (
+            [name] => sqlite_sequence
+        )
+
+    [2] => Array
+        (
+            [name] => income
+        )
+
+    [3] => Array
+        (
+            [name] => expenses
+        )
+
+    [4] => Array
+        (
+            [name] => investments
+        )
+
+    [5] => Array
+        (
+            [name] => loans
+        )
+
+    [6] => Array
+        (
+            [name] => credit_accounts
+        )
+
+    [7] => Array
+        (
+            [name] => emis
+        )
+
+    [8] => Array
+        (
+            [name] => payslips
+        )
+
+    [9] => Array
+        (
+            [name] => investment_plans
+        )
+
+)

@@ -1,0 +1,34 @@
+DB: C:\Users\sanjay.ks\Desktop\Work_Folder\Personnel_Project\expense-tracker\db\finance.db
+Size: 57344
+
+=== Table: users ===
+Count: 1
+{"id":"1","name":"Sanjay KS","email":"sanjaykshebbar@gmail.com","password":"$2y$10$Ru\/4PGkNlkNZa0Ibpq9eJOPQEzfeIraJVYqdau0oCfJqBgGq91\/Qi","created_at":"2026-02-04 10:55:55"}
+
+=== Table: sqlite_sequence ===
+Count: 1
+{"name":"users","seq":"1"}
+
+=== Table: income ===
+Count: 0
+
+=== Table: expenses ===
+Count: 0
+
+=== Table: investments ===
+Count: 0
+
+=== Table: loans ===
+Count: 0
+
+=== Table: credit_accounts ===
+Count: 0
+
+=== Table: emis ===
+Count: 0
+
+=== Table: payslips ===
+Count: 0
+
+=== Table: investment_plans ===
+Count: 0
