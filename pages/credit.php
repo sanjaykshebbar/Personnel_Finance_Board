@@ -41,6 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // SYNC: Update expenses and EMIs if provider name changed
                 if ($oldProvider && $oldProvider !== $provider) {
                     $pdo->prepare("UPDATE expenses SET payment_method = ? WHERE payment_method = ? AND user_id = ?")->execute([$provider, $oldProvider, $userId]);
+                    $pdo->prepare("UPDATE expenses SET target_account = ? WHERE target_account = ? AND user_id = ?")->execute([$provider, $oldProvider, $userId]);
                     $pdo->prepare("UPDATE emis SET payment_method = ? WHERE payment_method = ? AND user_id = ?")->execute([$provider, $oldProvider, $userId]);
                 }
                 
@@ -84,30 +85,34 @@ if (isset($_GET['history_view'])) {
         $cardName = $historyCard['provider_name'];
         $firstWord = explode(' ', trim($cardName))[0];
         
-        // Robust History Search
+        // EXPLICIT History Search (Using target_account and payment_method)
         $txnStmt = $pdo->prepare("
             SELECT * FROM expenses 
             WHERE user_id = ? 
             AND (
                 TRIM(LOWER(payment_method)) = TRIM(LOWER(?)) -- Spent using card
                 OR 
+                TRIM(LOWER(target_account)) = TRIM(LOWER(?)) -- Paid TO card (explicit link)
+                OR
                 (
-                    (description LIKE ? OR description LIKE ? OR (category = 'Credit Card Bill' AND description LIKE ?)) 
-                    AND TRIM(LOWER(payment_method)) != TRIM(LOWER(?)) -- Payment TO card
+                    category = 'Credit Card Bill' 
+                    AND (description LIKE ? OR description LIKE ?)
+                    AND (target_account IS NULL OR target_account = '')
                 )
             )
             ORDER BY date DESC
         ");
-        $txnStmt->execute([$userId, $cardName, "%$cardName%", "%$firstWord%", "%$firstWord%", $cardName]);
+        $txnStmt->execute([$userId, $cardName, $cardName, "%$cardName%", "%$firstWord%"]);
         $historyTxns = $txnStmt->fetchAll();
     }
 }
 
-// Fetch Credit Accounts with Advanced Usage Calculation BEFORE header
-// FIXED: Added TRIM(LOWER(...)) to ensure case-insensitive matching
+// Fetch Credit Accounts with Advanced Dynamic Usage Calculation
+// Formula: Debt = ManualUsed + OneTimeExpenses - BillPayments + EMI_Outstanding
 $stmt = $pdo->prepare("
     SELECT ca.*, 
     (SELECT IFNULL(SUM(amount), 0) FROM expenses WHERE TRIM(LOWER(payment_method)) = TRIM(LOWER(ca.provider_name)) AND converted_to_emi = 0 AND user_id = ca.user_id AND date >= '" . SYSTEM_START_DATE . "') as one_time_expenses,
+    (SELECT IFNULL(SUM(amount), 0) FROM expenses WHERE category = 'Credit Card Bill' AND TRIM(LOWER(target_account)) = TRIM(LOWER(ca.provider_name)) AND user_id = ca.user_id) as bill_payments,
     (SELECT IFNULL(SUM(total_amount - (emi_amount * paid_months)), 0) FROM emis WHERE TRIM(LOWER(payment_method)) = TRIM(LOWER(ca.provider_name)) AND user_id = ca.user_id AND status = 'Active') as emi_outstanding
     FROM credit_accounts ca 
     WHERE ca.user_id = ?
@@ -115,7 +120,7 @@ $stmt = $pdo->prepare("
 $stmt->execute([$userId]);
 $accounts = $stmt->fetchAll();
 
-// NOW load header (which outputs HTML)
+// NOW load header
 $pageTitle = 'Credit Usage';
 require_once '../includes/header.php';
 ?>
@@ -138,8 +143,8 @@ require_once '../includes/header.php';
             </div>
             <div>
                 <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">
-                    Manual Base used (₹)
-                    <span class="text-[8px] text-gray-400 normal-case">· Adjust starting debt</span>
+                    Initial Balance Used (₹)
+                    <span class="text-[8px] text-gray-400 normal-case">· Debt before tracking</span>
                 </label>
                 <input type="number" step="0.01" name="used_amount" 
                        value="<?php echo $editRow['used_amount']??0; ?>" 
@@ -156,8 +161,8 @@ require_once '../includes/header.php';
     <!-- Cards Grid -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <?php foreach ($accounts as $acc): 
-            // Total Used = Manual Base + One-time Expenses + EMI Outstanding
-            $currentUsed = $acc['used_amount'] + $acc['one_time_expenses'] + $acc['emi_outstanding'];
+            // Total Used = Initial Base + Charged Expenses - Payments + EMI Outstanding
+            $currentUsed = $acc['used_amount'] + $acc['one_time_expenses'] - ($acc['bill_payments'] ?? 0) + $acc['emi_outstanding'];
             $limit = $acc['credit_limit'];
             $remaining = $limit - $currentUsed;
             $percent = ($limit > 0) ? ($currentUsed / $limit) * 100 : 0;
@@ -184,10 +189,10 @@ require_once '../includes/header.php';
             </div>
 
             <div class="flex items-center space-x-6 mb-6">
-                <!-- Pie Chart Container -->
+                <!-- Pie Chart -->
                 <div class="w-20 h-20 flex-shrink-0">
                     <canvas id="credit-chart-<?php echo $acc['id']; ?>" class="credit-chart" 
-                            data-used="<?php echo $currentUsed; ?>" 
+                            data-used="<?php echo max(0, $currentUsed); ?>" 
                             data-rem="<?php echo max(0, $remaining); ?>"
                             data-color="<?php echo $chartColor; ?>"></canvas>
                 </div>
@@ -205,7 +210,7 @@ require_once '../includes/header.php';
 
             <div class="grid grid-cols-2 gap-4 pt-4 border-t border-gray-100 dark:border-gray-700">
                 <div>
-                    <div class="text-[10px] font-bold text-gray-400 uppercase text-center mb-1">Spent</div>
+                    <div class="text-[10px] font-bold text-gray-400 uppercase text-center mb-1">Net Spent</div>
                     <div class="text-sm font-bold text-gray-900 dark:text-white text-center">₹<?php echo number_format($currentUsed); ?></div>
                 </div>
                 <div>
@@ -214,9 +219,10 @@ require_once '../includes/header.php';
                 </div>
             </div>
             
-            <!-- Breakdown Tooltip-like info -->
-            <div class="mt-4 pt-2 flex justify-between text-[9px] font-bold text-gray-300 dark:text-gray-600 uppercase">
-                <span>Exp: ₹<?php echo number_format($acc['one_time_expenses']); ?></span>
+            <div class="mt-4 pt-2 flex justify-between text-[8px] font-bold text-gray-300 dark:text-gray-600 uppercase">
+                <span>Initial: ₹<?php echo number_format($acc['used_amount']); ?></span>
+                <span>Expenses: ₹<?php echo number_format($acc['one_time_expenses']); ?></span>
+                <span>Paid: ₹<?php echo number_format($acc['bill_payments']); ?></span>
                 <span>EMI: ₹<?php echo number_format($acc['emi_outstanding']); ?></span>
             </div>
         </div>
@@ -286,7 +292,7 @@ require_once '../includes/header.php';
                     </thead>
                     <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-50 dark:divide-gray-700">
                         <?php foreach ($historyTxns as $txn): 
-                            $isBillPayment = (trim(strtolower($txn['payment_method'])) !== trim(strtolower($historyCard['provider_name'])));
+                            $isBillPayment = ($txn['category'] === 'Credit Card Bill' || trim(strtolower($txn['target_account'] ?? '')) === trim(strtolower($historyCard['provider_name'])));
                         ?>
                         <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
                             <td class="px-6 py-4 whitespace-nowrap text-xs text-gray-500 font-medium">
@@ -315,7 +321,7 @@ require_once '../includes/header.php';
         </div>
         
         <div class="p-4 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-center">
-            <span class="text-[10px] text-gray-400 font-bold uppercase">Note: Bill payments are detected by matching descriptions or categories.</span>
+            <span class="text-[10px] text-gray-400 font-bold uppercase">Note: History links are now explicit via 'Target Account'.</span>
         </div>
     </div>
 </div>

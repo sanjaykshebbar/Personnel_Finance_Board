@@ -1,111 +1,75 @@
 <?php
 require_once 'config/database.php';
-require_once 'includes/auth.php'; // Auth Middleware
-requireLogin(); // Enforce Login function
+require_once 'includes/auth.php';
+requireLogin();
 
-$pageTitle = 'Dashboard';
-require_once 'includes/header.php';
-
-// --- Logic ---
 $userId = getCurrentUserId();
 $currentMonth = $_GET['month'] ?? date('Y-m');
-// --- Constants for accounting ---
-$startMonth = substr(SYSTEM_START_DATE, 0, 7); // "2026-02"
 
-// 1. Total Income (Current Month)
-// Fixed: Income is now attributed based on 'month' (User selected Budget Month)
-$stmt = $pdo->prepare("SELECT SUM(total_income) as total FROM income WHERE month = ? AND user_id = ? AND accounting_date >= '" . SYSTEM_START_DATE . "'");
-$stmt->execute([$currentMonth, $userId]);
-$incomeCurrent = $stmt->fetch()['total'] ?? 0;
-
-// 2. Total Expenses (Current Month - Shifted)
-// We exclude 'Investment' category here because we sum it separately in investmentsCurrent for the card, 
-// OR we sum everything in expenses and don't sum investments separately. 
-// Let's sum EVERYTHING in expenses and then show specific cards.
-// FIXED: Exclude expenses that are 'converted_to_emi' (1) to avoid double counting (Initial + EMI installments)
-$stmt = $pdo->prepare("SELECT SUM(amount) as total FROM expenses WHERE strftime('%Y-%m', date) = ? AND date >= '" . SYSTEM_START_DATE . "' AND user_id = ? AND converted_to_emi = 0");
-$stmt->execute([$currentMonth, $userId]);
-$expensesCurrent = $stmt->fetch()['total'] ?? 0;
-
-// 3. Total Investments (Current Month)
-// To avoid double counting in Balance calculation, we keep this for the card view ONLY.
-$stmt = $pdo->prepare("SELECT SUM(amount) as total FROM investments WHERE strftime('%Y-%m', due_date) = ? AND due_date >= '" . SYSTEM_START_DATE . "' AND user_id = ?");
-$stmt->execute([$currentMonth, $userId]);
-$investmentsCurrent = $stmt->fetch()['total'] ?? 0;
-
-// 4. Carry Forward (Previous Month Remaining Balance)
-if ($currentMonth <= $startMonth) {
-    $carryForward = 0;
-} else {
-    $stmt = $pdo->prepare("SELECT SUM(total_income) FROM income WHERE month < ? AND accounting_date >= '" . SYSTEM_START_DATE . "' AND user_id = ?");
-    $stmt->execute([$currentMonth, $userId]);
-    $pastIncome = $stmt->fetchColumn() ?? 0;
-
-    // FIXED: Carry forward should calculate 'Cash/Bank Position', so we exclude credit card spending (Liabilities).
-    // This assumes Credit Card Bill Payments are recorded as separate expenses/transfers from Bank.
-    $stmt = $pdo->prepare("
-        SELECT SUM(amount) 
-        FROM expenses 
-        WHERE strftime('%Y-%m', date) < ? 
-        AND date >= '" . SYSTEM_START_DATE . "' 
-        AND user_id = ? 
-        AND converted_to_emi = 0
-        AND TRIM(LOWER(payment_method)) NOT IN (SELECT TRIM(LOWER(provider_name)) FROM credit_accounts WHERE user_id = ?)
-    ");
-    $stmt->execute([$currentMonth, $userId, $userId]);
-    $pastExpenses = $stmt->fetchColumn() ?? 0;
-
-    $carryForward = $pastIncome - $pastExpenses;
-}
-
-// 5. Total Balance Available (This Month)
-$totalAvailable = $incomeCurrent + $carryForward;
-
-// 6. Current Month EMIs - KEEPING for Display/Analytics if needed, but NOT for Balance Calculation
-$stmt = $pdo->prepare("SELECT SUM(emi_amount) FROM emis WHERE status = 'Active' AND user_id = ? AND start_date <= ? AND start_date >= '" . SYSTEM_START_DATE . "'");
-$stmt->execute([$userId, $currentMonth . "-31"]);
-$emisCurrent = $stmt->fetchColumn() ?? 0;
-
-// 7. Remaining Savings (This Month)
-// Fixed: Balance = Total Available - Asset Expenses (Expenses paid via Bank/Cash)
-// We calculate Asset Expenses separately ensuring we exclude Credit Card spending.
+// 1. Current Month Expenses (Asset side - Bank/Cash only for cash flow charts)
 $stmt = $pdo->prepare("
-    SELECT SUM(amount) as total 
-    FROM expenses 
-    WHERE strftime('%Y-%m', date) = ? 
-    AND date >= '" . SYSTEM_START_DATE . "' 
-    AND user_id = ? 
-    AND converted_to_emi = 0
+    SELECT IFNULL(SUM(amount), 0) FROM expenses 
+    WHERE user_id = ? AND strftime('%Y-%m', date) = ?
+");
+$stmt->execute([$userId, $currentMonth]);
+$expensesCurrent = $stmt->fetchColumn();
+
+// 1.1 Calculate current month "Asset-only" expenses (Cash flow)
+$assetStmt = $pdo->prepare("
+    SELECT IFNULL(SUM(amount), 0) FROM expenses 
+    WHERE user_id = ? 
+    AND strftime('%Y-%m', date) = ?
     AND TRIM(LOWER(payment_method)) NOT IN (SELECT TRIM(LOWER(provider_name)) FROM credit_accounts WHERE user_id = ?)
 ");
-$stmt->execute([$currentMonth, $userId, $userId]);
-$assetExpensesCurrent = $stmt->fetch()['total'] ?? 0;
+$assetStmt->execute([$userId, $currentMonth, $userId]);
+$assetExpensesCurrent = $assetStmt->fetchColumn();
 
-$remainingSavings = $totalAvailable - $assetExpensesCurrent;
+// 2. Current Month Income
+$stmt = $pdo->prepare("SELECT SUM(total_income) FROM income WHERE user_id = ? AND month = ?");
+$stmt->execute([$userId, $currentMonth]);
+$incomeCurrent = $stmt->fetchColumn() ?: 0;
 
-// 7. Spending by Category (Current Month)
-$catStmt = $pdo->prepare("
-    SELECT category, SUM(amount) as total 
-    FROM expenses 
-    WHERE strftime('%Y-%m', date) = ? AND date >= '" . SYSTEM_START_DATE . "' AND user_id = ? AND converted_to_emi = 0
-    GROUP BY category 
-    ORDER BY total DESC
+// 3. Carry Forward (Historical Surplus up to previous month)
+// FIXED: Carry forward should only consider Asset-based cash flow (Income - AssetExpenses)
+$stmt = $pdo->prepare("SELECT SUM(total_income) FROM income WHERE user_id = ? AND month < ?");
+$stmt->execute([$userId, $currentMonth]);
+$historicalIncome = $stmt->fetchColumn() ?: 0;
+
+$stmt = $pdo->prepare("
+    SELECT IFNULL(SUM(amount), 0) FROM expenses 
+    WHERE user_id = ? 
+    AND strftime('%Y-%m', date) < ?
+    AND TRIM(LOWER(payment_method)) NOT IN (SELECT TRIM(LOWER(provider_name)) FROM credit_accounts WHERE user_id = ?)
 ");
-$catStmt->execute([$currentMonth, $userId]);
-$categorySpending = $catStmt->fetchAll();
+$stmt->execute([$userId, $currentMonth, $userId]);
+$historicalAssetExpenses = $stmt->fetchColumn();
+
+$carryForward = $historicalIncome - $historicalAssetExpenses;
+
+// 4. Remaining Balance (Cash in Hand)
+// Current Income + Carry Forward - Current Asset Expenses
+$remainingSavings = $incomeCurrent + $carryForward - $assetExpensesCurrent;
+
+// 5. Category Breakdown (Current Month)
+$stmt = $pdo->prepare("SELECT category, SUM(amount) as total FROM expenses WHERE user_id = ? AND strftime('%Y-%m', date) = ? GROUP BY category");
+$stmt->execute([$userId, $currentMonth]);
+$categories = $stmt->fetchAll();
 
 $chartLabels = [];
 $chartValues = [];
-foreach($categorySpending as $c) {
+foreach ($categories as $c) {
+    if ($c['total'] <= 0) continue;
     $chartLabels[] = $c['category'];
     $chartValues[] = $c['total'];
 }
 
 
-// Credit Utilization Calculation
+// 6. Credit Utilization Calculation (Dynamic Formula)
+// Formula: Debt = InitialBase + Expenses - Payments + EMI_Outstanding
 $creditStmt = $pdo->prepare("
     SELECT ca.*, 
     (SELECT IFNULL(SUM(amount), 0) FROM expenses WHERE TRIM(LOWER(payment_method)) = TRIM(LOWER(ca.provider_name)) AND converted_to_emi = 0 AND user_id = ca.user_id AND date >= '" . SYSTEM_START_DATE . "') as one_time_expenses,
+    (SELECT IFNULL(SUM(amount), 0) FROM expenses WHERE category = 'Credit Card Bill' AND TRIM(LOWER(target_account)) = TRIM(LOWER(ca.provider_name)) AND user_id = ca.user_id) as bill_payments,
     (SELECT IFNULL(SUM(total_amount - (emi_amount * paid_months)), 0) FROM emis WHERE TRIM(LOWER(payment_method)) = TRIM(LOWER(ca.provider_name)) AND user_id = ca.user_id AND status = 'Active') as emi_outstanding
     FROM credit_accounts ca 
     WHERE ca.user_id = ?
@@ -120,7 +84,8 @@ $creditCardUsedValues = [];
 
 foreach ($creditAccounts as $acc) {
     $totalCreditLimit += $acc['credit_limit'];
-    $usedForThisCard = $acc['used_amount'] + $acc['one_time_expenses'] + $acc['emi_outstanding'];
+    // Used = Base + Expenses - Payments + EMI
+    $usedForThisCard = $acc['used_amount'] + $acc['one_time_expenses'] - ($acc['bill_payments'] ?? 0) + $acc['emi_outstanding'];
     $totalCreditUsed += $usedForThisCard;
     
     if ($usedForThisCard > 0) {
@@ -133,14 +98,10 @@ $creditUtilization = ($totalCreditLimit > 0) ? round(($totalCreditUsed / $totalC
 
 // Dashboard Summary Data
 $summaryIncome = $incomeCurrent;
-// FIXED: Financial Summary Chart should reflect 'Cash Flow' (Bank Position).
-// So we use Asset Expenses (Bank/Cash) here, not Total Expenses (which includes Liabilities).
-// This ensures 'Savings' in the chart aligns with the 'Remaining Balance' logic (Cash in Hand).
 $summaryExpense = $assetExpensesCurrent; 
 $summarySavings = max(0, $summaryIncome - $summaryExpense);
 
 // 8. Loan Analytics
-// 8.1 Borrowed (Liabilities)
 $loanStmt = $pdo->prepare("SELECT amount, emi_amount, paid_months, tenure_months, status, paid_amount FROM loans WHERE user_id = ? AND type = 'Borrowed'");
 $loanStmt->execute([$userId]);
 $borrowedLoans = $loanStmt->fetchAll();
@@ -157,7 +118,6 @@ foreach($borrowedLoans as $l) {
 }
 $borrowedRemaining = max(0, $totalBorrowedPrincipal - $totalBorrowedPaid);
 
-// 8.2 Lent (Receivables)
 $lentStmt = $pdo->prepare("SELECT amount, status, paid_amount FROM loans WHERE user_id = ? AND type = 'Lent'");
 $lentStmt->execute([$userId]);
 $lentLoans = $lentStmt->fetchAll();
@@ -169,13 +129,12 @@ foreach($lentLoans as $l) {
     if ($l['status'] === 'Settled') {
         $totalLentReceived += $l['amount'];
     } else {
-        // FIXED: Use 'paid_amount' for live updates
         $totalLentReceived += ($l['paid_amount'] ?? 0);
     }
 }
 $lentRemaining = max(0, $totalLentPrincipal - $totalLentReceived);
 
-// 9. Savings Breakdown (Total accumulated across all investments)
+// 9. Savings Breakdown
 $savStmt = $pdo->prepare("
     SELECT name, SUM(amount * paid_count) as total 
     FROM investment_plans 
@@ -195,6 +154,9 @@ foreach($savingsBreakdown as $s) {
     $savingsValues[] = $s['total'];
     $savingsFullNames[] = $s['name'];
 }
+
+$pageTitle = 'Dashboard';
+require_once 'includes/header.php';
 ?>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -218,38 +180,30 @@ foreach($savingsBreakdown as $s) {
 
     <!-- Stats Grid -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        
-        <!-- Total Income -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-6 border border-gray-100 dark:border-gray-700 transition-colors">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-6 border border-gray-100 dark:border-gray-700">
             <div class="flex items-center justify-between mb-4">
-                <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400">Gen. Income (<?php echo date('M Y', strtotime($currentMonth."-01")); ?>)</h3>
+                <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400">Gen. Income</h3>
                 <span class="p-2 bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-full text-sm">💰</span>
             </div>
             <p class="text-2xl font-bold text-gray-900 dark:text-white">₹<?php echo number_format($incomeCurrent, 2); ?></p>
         </div>
-
-        <!-- Carry Forward -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-6 border border-gray-100 dark:border-gray-700 transition-colors">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-6 border border-gray-100 dark:border-gray-700">
             <div class="flex items-center justify-between mb-4">
                 <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400">Carry Forward</h3>
                 <span class="p-2 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full text-sm">↪️</span>
             </div>
             <p class="text-2xl font-bold <?php echo $carryForward < 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'; ?>">₹<?php echo number_format($carryForward, 2); ?></p>
         </div>
-
-        <!-- Expenses -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-6 border border-gray-100 dark:border-gray-700 transition-colors">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-6 border border-gray-100 dark:border-gray-700">
             <div class="flex items-center justify-between mb-4">
-                <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400">Expenses (<?php echo date('M Y', strtotime($currentMonth."-01")); ?>)</h3>
+                <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400">Expenses</h3>
                 <span class="p-2 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-full text-sm">💸</span>
             </div>
             <p class="text-2xl font-bold text-gray-900 dark:text-white">₹<?php echo number_format($expensesCurrent, 2); ?></p>
         </div>
-
-        <!-- Remaining -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-6 border border-gray-100 dark:border-gray-700 transition-colors">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-6 border border-gray-100 dark:border-gray-700">
             <div class="flex items-center justify-between mb-4">
-                <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400">Remaining Balance</h3>
+                <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400">Remaining Bal</h3>
                 <span class="p-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-full text-sm">🏦</span>
             </div>
             <p class="text-2xl font-bold <?php echo $remainingSavings >= 0 ? 'text-gray-900 dark:text-white' : 'text-red-600 dark:text-red-400'; ?>">
@@ -258,96 +212,52 @@ foreach($savingsBreakdown as $s) {
         </div>
     </div>
 
-    <!-- Charts & Analytics -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4 gap-6">
-        <!-- Financial Summary Pie Chart -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-100 dark:border-gray-700 p-6 flex flex-col items-center transition-colors">
-            <h3 class="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4 w-full text-center">Financial Summary</h3>
-            <div class="h-48 w-full relative">
+    <!-- Charts Section -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Monthly Summary -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-100 dark:border-gray-700 p-6">
+            <h3 class="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-6">Financial Summary</h3>
+            <div class="h-64 relative">
                 <canvas id="summaryChart"></canvas>
             </div>
-            <div class="mt-4 grid grid-cols-2 gap-4 w-full text-[10px] font-bold text-gray-400 uppercase">
-                <div class="flex items-center"><span class="w-2 h-2 rounded-full bg-emerald-500 mr-2"></span> Inc: ₹<?php echo number_format($summaryIncome/1000, 1); ?>k</div>
-                <div class="flex items-center"><span class="w-2 h-2 rounded-full bg-red-500 mr-2"></span> Exp: ₹<?php echo number_format($summaryExpense/1000, 1); ?>k</div>
+            <div class="mt-8 grid grid-cols-3 gap-4 text-center">
+                <div>
+                    <div class="text-[10px] font-bold text-gray-400 uppercase mb-1">Income</div>
+                    <div class="text-sm font-black text-emerald-600">₹<?php echo number_format($summaryIncome/1000, 1); ?>k</div>
+                </div>
+                <div>
+                    <div class="text-[10px] font-bold text-gray-400 uppercase mb-1">Expense</div>
+                    <div class="text-sm font-black text-red-500">₹<?php echo number_format($summaryExpense/1000, 1); ?>k</div>
+                </div>
+                <div>
+                    <div class="text-[10px] font-bold text-gray-400 uppercase mb-1">Savings</div>
+                    <div class="text-sm font-black text-indigo-600">₹<?php echo number_format($summarySavings/1000, 1); ?>k</div>
+                </div>
             </div>
         </div>
 
-        <!-- Category Pie Chart -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-100 dark:border-gray-700 p-6 flex flex-col items-center transition-colors">
-            <h3 class="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4 w-full text-center">Category Spending</h3>
-            <?php if(empty($chartValues)): ?>
-                <div class="h-48 flex items-center justify-center text-gray-400 italic text-xs">No data.</div>
-            <?php else: ?>
-                <div class="h-48 w-full">
-                    <canvas id="categoryChart"></canvas>
-                </div>
-            <?php endif; ?>
-        </div>
-
-        <!-- Debt vs Assets (Loans) -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-100 dark:border-gray-700 p-6 flex flex-col items-center transition-colors">
-            <h3 class="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4 w-full text-center">Borrowed vs Lent</h3>
-            <?php if($totalBorrowedPrincipal <= 0 && $totalLentPrincipal <= 0): ?>
-                <div class="h-48 flex items-center justify-center text-gray-400 italic text-xs">No active loans.</div>
-            <?php else: ?>
-                <div class="h-48 w-full relative">
-                    <canvas id="loanCompareChart"></canvas>
-                </div>
-                <div class="mt-4 grid grid-cols-2 gap-4 w-full text-[10px] font-bold text-gray-400 uppercase">
-                    <div class="flex items-center"><span class="w-2 h-2 rounded-full bg-red-500 mr-2"></span> Debt: ₹<?php echo number_format($borrowedRemaining/1000, 1); ?>k</div>
-                    <div class="flex items-center"><span class="w-2 h-2 rounded-full bg-blue-500 mr-2"></span> Lent: ₹<?php echo number_format($lentRemaining/1000, 1); ?>k</div>
-                </div>
-            <?php endif; ?>
-        </div>
-
-        <!-- Loan Progress -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-100 dark:border-gray-700 p-6 flex flex-col items-center transition-colors">
-            <h3 class="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4 w-full text-center">Debt Repayment</h3>
-            <?php if($totalBorrowedPrincipal <= 0): ?>
-                <div class="h-48 flex items-center justify-center text-gray-400 italic text-xs">No debts.</div>
-            <?php else: ?>
-                <div class="h-48 w-full relative">
-                    <canvas id="loanChart"></canvas>
-                </div>
-                <div class="mt-4 flex justify-between w-full text-[10px] font-bold text-gray-400 uppercase">
-                    <span>Paid: <?php echo round(($totalBorrowedPaid/$totalBorrowedPrincipal)*100); ?>%</span>
-                    <span>₹<?php echo number_format($borrowedRemaining/1000, 1); ?>k left</span>
-                </div>
-            <?php endif; ?>
-        </div>
-
-        <!-- Total Savings Breakdown Chart -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-100 dark:border-gray-700 p-6 flex flex-col items-center transition-colors">
-            <h3 class="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4 w-full text-center">Total Savings Breakdown</h3>
-            <?php if(empty($savingsValues)): ?>
-                <div class="h-48 flex items-center justify-center text-gray-400 italic text-xs">No savings data.</div>
-            <?php else: ?>
-                <div class="h-48 w-full">
-                    <canvas id="savingsBreakdownChart"></canvas>
-                </div>
-                <div class="mt-4 flex flex-col items-center w-full text-[10px] font-bold text-gray-400 uppercase">
-                    <span>Total Portfolio: ₹<?php echo number_format(array_sum($savingsValues)); ?></span>
-                </div>
-            <?php endif; ?>
-        </div>
-
-        <!-- Credit Card Usage Chart -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-100 dark:border-gray-700 p-6 flex flex-col items-center transition-colors">
-            <h3 class="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4 w-full text-center">Credit Card Usage</h3>
+        <!-- Credit Card Summary -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-100 dark:border-gray-700 p-6">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Credit Card Usage</h3>
+                <span class="text-sm font-black <?php echo $creditUtilization > 85 ? 'text-red-600' : ($creditUtilization > 60 ? 'text-amber-600' : 'text-emerald-600'); ?>">
+                    <?php echo $creditUtilization; ?>% Used
+                </span>
+            </div>
             <?php if(empty($creditCardUsedValues)): ?>
-                <div class="h-48 flex items-center justify-center text-gray-400 italic text-xs">No credit card usage.</div>
+                <div class="h-64 flex items-center justify-center text-gray-400 italic text-xs">No active credit card debt.</div>
             <?php else: ?>
-                <div class="h-48 w-full relative">
+                <div class="h-64 relative">
                     <canvas id="creditChart"></canvas>
                 </div>
-                <div class="mt-4 flex flex-wrap justify-center gap-4 w-full text-[10px] font-bold text-gray-400 uppercase">
+                <div class="mt-8 flex flex-wrap justify-center gap-4 text-[9px] font-bold text-gray-400 uppercase">
                     <?php foreach($creditAccounts as $idx => $acc): 
-                        $used = $acc['used_amount'] + $acc['one_time_expenses'] + $acc['emi_outstanding'];
+                        $used = $acc['used_amount'] + $acc['one_time_expenses'] - ($acc['bill_payments'] ?? 0) + $acc['emi_outstanding'];
                         if($used <= 0) continue;
                     ?>
                         <div class="flex items-center">
-                            <span class="w-2 h-2 rounded-full mr-2" style="background-color: <?php echo ['#6366f1', '#8b5cf6', '#ec4899', '#ef4444', '#f59e0b', '#10b981', '#3b82f6'][$idx % 7]; ?>"></span>
-                            <?php echo $acc['provider_name']; ?>: ₹<?php echo number_format($used/1000, 1); ?>k
+                            <span class="w-2 h-2 rounded-full mr-1.5" style="background-color: <?php echo ['#6366f1', '#8b5cf6', '#ec4899', '#ef4444', '#f59e0b', '#10b981', '#3b82f6'][$idx % 7]; ?>"></span>
+                            <?php echo htmlspecialchars($acc['provider_name']); ?>: ₹<?php echo number_format($used/1000, 1); ?>k
                         </div>
                     <?php endforeach; ?>
                 </div>
@@ -355,48 +265,61 @@ foreach($savingsBreakdown as $s) {
         </div>
     </div>
 
-    <!-- Recent Transactions (Expenses) -->
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-100 dark:border-gray-700 overflow-hidden transition-colors">
-        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-            <h3 class="text-lg font-bold text-gray-900 dark:text-white">Recent Expenses</h3>
-            <a href="pages/expenses.php" class="text-sm text-brand-600 hover:text-brand-800 dark:text-brand-400">View All &rarr;</a>
+    <!-- Transactions and More -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Recent Expenses -->
+        <div class="lg:col-span-2 bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-100 dark:border-gray-700 overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50/50 dark:bg-gray-900/50">
+                <h3 class="text-sm font-black text-gray-900 dark:text-white uppercase tracking-widest">Recent Activity</h3>
+                <a href="pages/expenses.php" class="text-[10px] font-bold text-brand-600 hover:text-brand-800 uppercase tracking-wider">All History →</a>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-100 dark:divide-gray-700">
+                    <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-50 dark:divide-gray-700">
+                        <?php
+                        $recStmt = $pdo->prepare("SELECT * FROM expenses WHERE user_id = ? ORDER BY date DESC, id DESC LIMIT 6");
+                        $recStmt->execute([$userId]);
+                        while ($row = $recStmt->fetch()):
+                        ?>
+                        <tr class="hover:bg-gray-25 dark:hover:bg-gray-800/50 transition">
+                            <td class="px-6 py-4 whitespace-nowrap text-xs text-gray-400 font-medium"><?php echo date('d M', strtotime($row['date'])); ?></td>
+                            <td class="px-6 py-4 text-sm text-gray-900 dark:text-white font-bold"><?php echo htmlspecialchars($row['description']); ?></td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="px-2 py-0.5 text-[9px] font-black uppercase rounded-md bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-600">
+                                    <?php echo htmlspecialchars($row['category']); ?>
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-black text-gray-900 dark:text-white">₹<?php echo number_format($row['amount']); ?></td>
+                        </tr>
+                        <?php endwhile; ?>
+                    </tbody>
+                </table>
+            </div>
         </div>
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead class="bg-gray-50 dark:bg-gray-900/50">
-                    <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Description</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Category</th>
-                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Amount</th>
-                    </tr>
-                </thead>
-                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                    <?php
-                    $recStmt = $pdo->prepare("SELECT * FROM expenses WHERE user_id = ? AND strftime('%Y-%m', date) = ? ORDER BY date DESC LIMIT 5");
-                    $recStmt->execute([$userId, $currentMonth]);
-                    while ($row = $recStmt->fetch()):
-                    ?>
-                    <tr class="hover:bg-gray-25 dark:hover:bg-gray-900/30 transition-colors">
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                            <?php echo htmlspecialchars($row['date']); ?>
-                            <?php if ($row['date'] < SYSTEM_START_DATE): ?>
-                                <div class="text-[8px] text-amber-600 font-bold uppercase">Pre-Active</div>
-                            <?php endif; ?>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white"><?php echo htmlspecialchars($row['description']); ?></td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200">
-                                <?php echo htmlspecialchars($row['category']); ?>
-                            </span>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-gray-900 dark:text-white">
-                            ₹<?php echo number_format($row['amount'], 2); ?>
-                        </td>
-                    </tr>
-                    <?php endwhile; ?>
-                </tbody>
-            </table>
+
+        <!-- Loan Analytics -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-100 dark:border-gray-700 p-6">
+            <h3 class="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-6">Debt Progress</h3>
+            <?php if($totalBorrowedPrincipal <= 0): ?>
+                <div class="h-48 flex items-center justify-center text-gray-400 italic text-xs">No active debts.</div>
+            <?php else: ?>
+                <div class="h-48 relative">
+                    <canvas id="loanChart"></canvas>
+                </div>
+                <div class="mt-8 space-y-3">
+                    <div class="flex justify-between text-[10px] font-bold uppercase">
+                        <span class="text-gray-400">Paid Back</span>
+                        <span class="text-emerald-600">₹<?php echo number_format($totalBorrowedPaid); ?></span>
+                    </div>
+                    <div class="w-full bg-gray-100 dark:bg-gray-700 h-2 rounded-full overflow-hidden">
+                        <div class="bg-emerald-500 h-full transition-all duration-500" style="width: <?php echo ($totalBorrowedPaid/$totalBorrowedPrincipal)*100; ?>%"></div>
+                    </div>
+                    <div class="flex justify-between text-[10px] font-bold uppercase">
+                        <span class="text-gray-400">Remaining</span>
+                        <span class="text-red-500">₹<?php echo number_format($borrowedRemaining); ?></span>
+                    </div>
+                </div>
+            <?php endif; ?>
         </div>
     </div>
 </div>
@@ -414,60 +337,31 @@ new Chart(document.getElementById('summaryChart'), {
         datasets: [{
             data: [<?php echo $summaryIncome; ?>, <?php echo $summaryExpense; ?>, <?php echo $summarySavings; ?>],
             backgroundColor: ['#10b981', '#ef4444', '#6366f1'],
-            borderWidth: 2,
-            borderColor: chartBorderColor
+            borderWidth: 0,
+            hoverOffset: 4
         }]
     },
     options: {
         responsive: true,
         maintainAspectRatio: false,
-        cutout: '70%',
+        cutout: '75%',
         plugins: {
-            legend: {
-                position: 'bottom',
-                labels: { usePointStyle: true, color: chartLegendColor, font: { size: 9 } }
-            }
+            legend: { display: false }
         }
     }
 });
 
-<?php if(!empty($chartValues)): ?>
-// 2. Category Chart
-new Chart(document.getElementById('categoryChart'), {
+<?php if(!empty($creditCardUsedValues)): ?>
+// 2. Credit Card Chart
+new Chart(document.getElementById('creditChart'), {
     type: 'pie',
     data: {
-        labels: <?php echo json_encode($chartLabels); ?>,
+        labels: <?php echo json_encode($creditCardLabels); ?>,
         datasets: [{
-            data: <?php echo json_encode($chartValues); ?>,
-            backgroundColor: ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'],
+            data: <?php echo json_encode($creditCardUsedValues); ?>,
+            backgroundColor: ['#6366f1', '#8b5cf6', '#ec4899', '#ef4444', '#f59e0b', '#10b981', '#3b82f6'],
             borderWidth: 2,
             borderColor: chartBorderColor
-        }]
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-            legend: {
-                position: 'bottom',
-                labels: { usePointStyle: true, color: chartLegendColor, font: { size: 9 } }
-            }
-        }
-    }
-});
-<?php endif; ?>
-
-<?php if($totalBorrowedPrincipal > 0 || $totalLentPrincipal > 0): ?>
-// 3. Comparison Chart (Borrowed vs Lent)
-new Chart(document.getElementById('loanCompareChart'), {
-    type: 'bar',
-    data: {
-        labels: ['Liabilities', 'Receivables'],
-        datasets: [{
-            label: 'Amount (₹)',
-            data: [<?php echo $borrowedRemaining; ?>, <?php echo $lentRemaining; ?>],
-            backgroundColor: ['#ef4444', '#3b82f6'],
-            borderRadius: 6
         }]
     },
     options: {
@@ -475,115 +369,31 @@ new Chart(document.getElementById('loanCompareChart'), {
         maintainAspectRatio: false,
         plugins: {
             legend: { display: false }
-        },
-        scales: {
-            y: { beginAtZero: true, ticks: { display: false }, grid: { display: false } },
-            x: { grid: { display: false }, ticks: { color: chartLegendColor } }
         }
     }
 });
 <?php endif; ?>
 
 <?php if($totalBorrowedPrincipal > 0): ?>
-// 4. Loan Progress Chart
+// 3. Loan Chart
 new Chart(document.getElementById('loanChart'), {
     type: 'doughnut',
     data: {
         labels: ['Paid', 'Remaining'],
         datasets: [{
             data: [<?php echo $totalBorrowedPaid; ?>, <?php echo $borrowedRemaining; ?>],
-            backgroundColor: ['#4f46e5', '#e5e7eb'],
-            borderWidth: 2,
-            borderColor: chartBorderColor
+            backgroundColor: ['#10b981', '#f3f4f6'],
+            borderWidth: 0,
+            cutout: '80%'
         }]
     },
     options: {
         responsive: true,
         maintainAspectRatio: false,
-        cutout: '60%',
-        plugins: {
-            legend: {
-                position: 'bottom',
-                labels: { usePointStyle: true, color: chartLegendColor, font: { size: 9 } }
-            }
-        }
-    }
-});
-<?php endif; ?>
-
-<?php if(!empty($savingsValues)): ?>
-// 5. Savings Breakdown Chart
-new Chart(document.getElementById('savingsBreakdownChart'), {
-    type: 'pie',
-    data: {
-        labels: <?php echo json_encode($savingsLabels); ?>,
-        datasets: [{
-            data: <?php echo json_encode($savingsValues); ?>,
-            backgroundColor: ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#06b6d4', '#8b5cf6', '#f43f5e'],
-            borderWidth: 2,
-            borderColor: chartBorderColor
-        }]
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-            legend: {
-                position: 'bottom',
-                labels: { usePointStyle: true, color: chartLegendColor, font: { size: 9 } }
-            },
-            tooltip: {
-                callbacks: {
-                    label: function(context) {
-                        const fullNames = <?php echo json_encode($savingsFullNames); ?>;
-                        const label = fullNames[context.dataIndex] || context.label;
-                        const value = context.parsed;
-                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                        const percentage = ((value / total) * 100).toFixed(1);
-                        return `${label}: ₹${value.toLocaleString()} (${percentage}%)`;
-                    }
-                }
-            }
-        }
-    }
-});
-<?php endif; ?>
-
-<?php if(!empty($creditCardUsedValues)): ?>
-// 6. Credit Card Usage Chart
-new Chart(document.getElementById('creditChart'), {
-    type: 'doughnut',
-    data: {
-        labels: <?php echo json_encode($creditCardLabels); ?>,
-        datasets: [{
-            data: <?php echo json_encode($creditCardUsedValues); ?>,
-            backgroundColor: [
-                '#6366f1', '#8b5cf6', '#ec4899', '#ef4444', '#f59e0b', '#10b981', '#3b82f6'
-            ],
-            borderWidth: 2,
-            borderColor: chartBorderColor
-        }]
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        cutout: '65%',
-        plugins: {
-            legend: {
-                position: 'bottom',
-                labels: { usePointStyle: true, color: chartLegendColor, font: { size: 9 } }
-            },
-            tooltip: {
-                callbacks: {
-                    label: function(context) {
-                        return `${context.label}: ₹${context.raw.toLocaleString()}`;
-                    }
-                }
-            }
-        }
+        plugins: { legend: { display: false } }
     }
 });
 <?php endif; ?>
 </script>
 
-<?php require_once 'includes/footer.php'; ?>
+<?php require_once 'includes/header.php'; ?>

@@ -48,6 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $desc = $_POST['description'];
             $amount = $_POST['amount'];
             $method = $_POST['payment_method'];
+            $targetAccount = ($category === 'Credit Card Bill') ? ($_POST['target_card_name'] ?? null) : null;
             
             // Check for valid amount
             if ($amount <= 0) {
@@ -76,22 +77,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                  }
             }
 
-            // Insert Expense Logic
-            $stmt = $pdo->prepare("INSERT INTO expenses (user_id, date, category, description, amount, payment_method, converted_to_emi) VALUES (?, ?, ?, ?, ?, ?, ?)");
+            // Insert Expense Logic (Include target_account)
+            $stmt = $pdo->prepare("INSERT INTO expenses (user_id, date, category, description, amount, payment_method, converted_to_emi, target_account) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
             $isEmi = (isset($_POST['convert_to_emi']) && $_POST['convert_to_emi'] == 'on') ? 1 : 0;
             
-            // Auto-improve description for Credit Card bills to ensure they are searchable in history
-            if ($category === 'Credit Card Bill' && !empty($_POST['target_card_name'])) {
-                $target = $_POST['target_card_name'];
-                if (stripos($desc, $target) === false) {
-                    $desc = "Paid: " . $target . ($desc ? " (" . $desc . ")" : "");
+            // Auto-improve description for Credit Card bills to ensure they are searchable in history (Compatibility fallback)
+            if ($category === 'Credit Card Bill' && !empty($targetAccount)) {
+                if (stripos($desc ?? '', $targetAccount) === false) {
+                    $desc = "Paid: " . $targetAccount . ($desc ? " (" . $desc . ")" : "");
                 }
             }
 
             // Transaction Start
             $pdo->beginTransaction();
             
-            $stmt->execute([$userId, $date, $category, $desc, $amount, $method, $isEmi]);
+            $stmt->execute([$userId, $date, $category, $desc, $amount, $method, $isEmi, $targetAccount]);
             
             // Handle EMI Conversion (New Plan)
             if ($isEmi) {
@@ -105,7 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $r = ($interest / 100) / 12;
                 $n = $tenure;
                 if ($r > 0) {
-                    $emi = ($p * $r * Math.pow(1 + $r, $n)) / (Math.pow(1 + $r, $n) - 1);
+                    $emi = ($p * $r * pow(1 + $r, $n)) / (pow(1 + $r, $n) - 1);
                 } else {
                     $emi = $p / $n;
                 }
@@ -150,12 +150,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
             } 
-            elseif ($category === 'Credit Card Bill' && !empty($_POST['target_card_name'])) {
-                $targetCard = $_POST['target_card_name'];
-                $stmt = $pdo->prepare("UPDATE credit_accounts SET used_amount = used_amount - ? WHERE provider_name = ? AND user_id = ?");
-                $stmt->execute([$amount, $targetCard, $userId]);
-                $_SESSION['flash_message'] = "Credit Card Bill recorded & Debt reduced on $targetCard! ✅";
-            }
             else {
                 $_SESSION['flash_message'] = "Expense added successfully.";
             }
@@ -328,23 +322,23 @@ foreach($expenses as $e) {
                 <?php foreach ($expenses as $row): ?>
                 <tr class="hover:bg-gray-25 transition">
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <?php echo htmlspecialchars($row['date']); ?>
-                        <?php if ($row['date'] < SYSTEM_START_DATE): ?>
-                            <div class="text-[8px] text-amber-600 font-bold uppercase">Reference Only (Pre-Active)</div>
-                        <?php endif; ?>
+                        <?php echo htmlspecialchars($row['date'] ?? ''); ?>
                     </td>
                     <td class="px-6 py-4 text-sm text-gray-900">
-                        <div class="font-bold"><?php echo htmlspecialchars($row['description']); ?></div>
-                        <div class="text-[10px] text-gray-400">Paid via <?php echo htmlspecialchars($row['payment_method']); ?></div>
+                        <div class="font-bold"><?php echo htmlspecialchars($row['description'] ?? ''); ?></div>
+                        <div class="text-[10px] text-gray-400">Paid via <?php echo htmlspecialchars($row['payment_method'] ?? ''); ?></div>
+                        <?php if(!empty($row['target_account'])): ?>
+                            <div class="text-[9px] text-emerald-600 font-bold uppercase mt-1">Target: <?php echo htmlspecialchars($row['target_account']); ?></div>
+                        <?php endif; ?>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm">
-                        <span class="bg-gray-100 text-gray-600 text-[10px] font-bold uppercase px-2 py-0.5 rounded"><?php echo htmlspecialchars($row['category']); ?></span>
+                        <span class="bg-gray-100 text-gray-600 text-[10px] font-bold uppercase px-2 py-0.5 rounded"><?php echo htmlspecialchars($row['category'] ?? ''); ?></span>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-right text-sm">
-                        <span class="font-bold text-gray-900">₹<?php echo number_format($row['amount'], 2); ?></span>
+                        <span class="font-bold text-gray-900">₹<?php echo number_format($row['amount'] ?? 0, 2); ?></span>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-right text-sm space-x-3">
-                        <?php if(strpos(strtolower($row['payment_method']), 'credit') !== false || strpos(strtolower($row['payment_method']), 'later') !== false): ?>
+                        <?php if(strpos(strtolower($row['payment_method'] ?? ''), 'credit') !== false || strpos(strtolower($row['payment_method'] ?? ''), 'later') !== false): ?>
                             <button onclick='openEmiModal(<?php echo json_encode($row); ?>)' 
                                     class="text-brand-600 hover:text-brand-800 text-xs font-bold uppercase tracking-wider">
                                 Convert to EMI
