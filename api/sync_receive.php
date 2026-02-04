@@ -1,86 +1,117 @@
 <?php
-header('Content-Type: application/json');
-require_once '../config/database.php';
+// api/sync_receive.php
 
-// 1. Authenticate
-$headers = getallheaders();
-$receivedKey = $headers['X-Sync-Key'] ?? $_SERVER['HTTP_X_SYNC_KEY'] ?? '';
+// Disable timeout for large syncs
+set_time_limit(300);
 
-$secretFile = __DIR__ . '/../config/sync_secret.txt';
+require_once '../config/database.php'; // For any DB utils, mostly we need paths
+// Since this is a standalone entry point, define paths relative to this file
+$rootDir = realpath(__DIR__ . '/../');
+
+// 0. Heartbeat (Ping)
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['ping'])) {
+    header('Content-Type: text/plain');
+    echo "PONG";
+    exit;
+}
+
+// 1. Validation
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
+    die("Method Not Allowed");
+}
+
+$secret = $_POST['secret'] ?? '';
+// In a real scenario, this secret should be checked against a local config or env var.
+// For this flexible setup, we can store the "Expected Secret" in config/sync_secret.txt
+// If the file doesn't exist, we might reject or allow initial setup. 
+// Let's enforce: User must create 'config/sync_secret.txt' on Backup Server to authorize.
+
+$secretFile = $rootDir . '/config/sync_secret.txt';
 if (!file_exists($secretFile)) {
-    http_response_code(500);
-    echo json_encode(['status' => 'error', 'message' => 'Sync not configured on receiver']);
-    exit;
-}
-
-$realKey = trim(file_get_contents($secretFile));
-if ($receivedKey !== $realKey) {
     http_response_code(403);
-    echo json_encode(['status' => 'error', 'message' => 'Invalid Secret Key']);
-    exit;
+    die("Setup Error: config/sync_secret.txt missing on backup server.");
 }
 
-// 2. Handle Handshake/Check
-if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-    echo json_encode(['status' => 'online', 'message' => 'Ready to sync']);
-    exit;
+$expectedSecret = trim(file_get_contents($secretFile));
+if ($secret !== $expectedSecret) {
+    http_response_code(401);
+    die("Unauthorized: Invalid Secret");
 }
 
-// 3. Handle Data Sync (POST)
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $input = json_decode(file_get_contents('php://input'), true);
+// 2. Receive File
+if (!isset($_FILES['backup_file']) || $_FILES['backup_file']['error'] !== UPLOAD_ERR_OK) {
+    http_response_code(400);
+    die("Upload Failed");
+}
+
+$tempZip = $_FILES['backup_file']['tmp_name'];
+$zip = new ZipArchive;
+if ($zip->open($tempZip) === TRUE) {
     
-    if (!$input) {
-        echo json_encode(['status' => 'error', 'message' => 'Invalid JSON']);
-        exit;
-    }
+    // 3. Maintenance Mode (Optional: Create lock file)
+    $lockFile = $rootDir . '/maintenance.lock';
+    touch($lockFile);
 
     try {
-        $pdo->beginTransaction();
+        // 4. Extract
+        // We extract to a temp folder first to verify, then swap?
+        // For simplicity: Direct overwrite is requested "complete data in sync"
+        
+        $zip->extractTo($rootDir . '/temp_sync_extract/');
+        $zip->close();
 
-        // Sync Expenses
-        if (isset($input['expenses']) && is_array($input['expenses'])) {
-            $stmt = $pdo->prepare("INSERT OR REPLACE INTO expenses (id, user_id, date, category, description, amount, payment_method, is_recurring, created_at) VALUES (:id, :user_id, :date, :category, :description, :amount, :payment_method, :is_recurring, :created_at)");
-            foreach ($input['expenses'] as $row) {
-                // Sanitize/Validate if needed
-                $stmt->execute([
-                    ':id' => $row['id'],
-                    ':user_id' => $row['user_id'],
-                    ':date' => $row['date'],
-                    ':category' => $row['category'],
-                    ':description' => $row['description'],
-                    ':amount' => $row['amount'],
-                    ':payment_method' => $row['payment_method'],
-                    ':is_recurring' => $row['is_recurring'] ?? 0,
-                    ':created_at' => $row['created_at'] ?? date('Y-m-d H:i:s')
-                ]);
-            }
+        // 5. Swap DB
+        $newDb = $rootDir . '/temp_sync_extract/finance.db';
+        if (file_exists($newDb)) {
+            // Backup existing just in case? No, "Sync" implies strict mirror.
+            copy($newDb, $rootDir . '/db/finance.db');
         }
 
-        // Sync Income
-        if (isset($input['income']) && is_array($input['income'])) {
-            $stmt = $pdo->prepare("INSERT OR REPLACE INTO income (id, user_id, source, amount, date, description, month, total_income) VALUES (:id, :user_id, :source, :amount, :date, :description, :month, :total_income)");
-            foreach ($input['income'] as $row) {
-                $stmt->execute([
-                    ':id' => $row['id'],
-                    ':user_id' => $row['user_id'],
-                    ':source' => $row['source'],
-                    ':amount' => $row['amount'],
-                    ':date' => $row['date'],
-                    ':description' => $row['description'],
-                    ':month' => $row['month'],
-                    ':total_income' => $row['total_income']
-                ]);
-            }
+        // 6. Merge Uploads
+        $newUploads = $rootDir . '/temp_sync_extract/uploads/';
+        if (is_dir($newUploads)) {
+            // Recursive copy/move
+            copydir($newUploads, $rootDir . '/uploads/');
         }
 
-        $pdo->commit();
-        echo json_encode(['status' => 'success', 'message' => 'Data synced successfully']);
+        // Cleanup
+        delTree($rootDir . '/temp_sync_extract/');
+        unlink($lockFile);
+        
+        echo "OK";
 
     } catch (Exception $e) {
-        $pdo->rollBack();
+        unlink($lockFile);
         http_response_code(500);
-        echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+        die("Extraction Error: " . $e->getMessage());
     }
+
+} else {
+    http_response_code(500);
+    die("Invalid Zip File");
 }
+
+// Helpers
+function copydir($source, $dest) {
+    if (!is_dir($dest)) mkdir($dest, 0777, true);
+    $dir = opendir($source);
+    while (false !== ($file = readdir($dir))) {
+        if ($file == '.' || $file == '..') continue;
+        if (is_dir($source . '/' . $file)) {
+            copydir($source . '/' . $file, $dest . '/' . $file);
+        } else {
+            copy($source . '/' . $file, $dest . '/' . $file);
+        }
+    }
+    closedir($dir);
+}
+
+function delTree($dir) { 
+   $files = array_diff(scandir($dir), array('.','..')); 
+    foreach ($files as $file) { 
+      (is_dir("$dir/$file")) ? delTree("$dir/$file") : unlink("$dir/$file"); 
+    } 
+    return rmdir($dir); 
+} 
 ?>

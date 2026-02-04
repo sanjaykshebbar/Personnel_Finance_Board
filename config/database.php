@@ -2,6 +2,7 @@
 // config/database.php
 
 $dbPath = __DIR__ . '/../db/finance.db';
+define('SYSTEM_START_DATE', '2026-02-01');
 
 try {
     // Create (connect to) SQLite database in file

@@ -4,22 +4,36 @@ require_once '../includes/auth.php';
 requireLogin();
 
 $userId = getCurrentUserId();
-$baseVaultDir = realpath(__DIR__ . '/../uploads') . DIRECTORY_SEPARATOR . 'vault' . DIRECTORY_SEPARATOR . 'user_' . $userId;
+$uploadsDir = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'uploads';
+$vaultDir = $uploadsDir . DIRECTORY_SEPARATOR . 'vault';
+$baseVaultDir = $vaultDir . DIRECTORY_SEPARATOR . 'user_' . $userId;
 
-// Ensure base vault directory exists
+// Ensure base vault directory exists (Universally)
 if (!is_dir($baseVaultDir)) {
     mkdir($baseVaultDir, 0777, true);
 }
 
 // Get current directory from URL, sanitize it
 $currentRelDir = $_GET['dir'] ?? '';
-$currentRelDir = str_replace(['..', '\\'], ['', '/'], $currentRelDir); // Basic sanitation
+$currentRelDir = str_replace(['..', '\\', '//'], ['', '/', '/'], $currentRelDir); // Robust sanitation
 $currentRelDir = trim($currentRelDir, '/');
 
-$fullCurrentDir = $baseVaultDir . ($currentRelDir ? DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $currentRelDir) : '');
+// Build the full path
+$fullCurrentDir = $baseVaultDir;
+if ($currentRelDir) {
+    $fullCurrentDir .= DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $currentRelDir);
+}
 
-// Security check: ensure the resulting path is still within the user's vault
-if (strpos(realpath($fullCurrentDir), $baseVaultDir) !== 0) {
+// Security check: ensure the resulting path is still within the user's base vault
+// We use realpath on the base to get a canonical parent for comparison
+$canonicalBase = realpath($baseVaultDir);
+// Ensure the full current dir exists before getting realpath to avoid false
+if (!is_dir($fullCurrentDir)) {
+    mkdir($fullCurrentDir, 0777, true);
+}
+$canonicalCurrent = realpath($fullCurrentDir);
+
+if ($canonicalCurrent === false || strpos($canonicalCurrent, $canonicalBase) !== 0) {
     header("Location: vault.php");
     exit;
 }

@@ -1,6 +1,7 @@
 <?php
 require_once '../config/database.php';
 require_once '../includes/auth.php';
+require_once '../includes/SyncManager.php';
 requireLogin();
 
 $userId = getCurrentUserId();
@@ -27,8 +28,60 @@ function saveNodes($nodes) {
 // Handle Actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['action'])) {
+<<<<<<< HEAD
         // --- EXISTING BACKUP/RESTORE ---
         if ($_POST['action'] === 'backup') {
+=======
+        if ($_POST['action'] === 'add_node') {
+            $sm = new SyncManager();
+            $sm->addNode($_POST['node_name'], $_POST['node_url'], $_POST['node_secret']);
+            $message = "Backup node added successfully.";
+        } elseif ($_POST['action'] === 'remove_node') {
+            $sm = new SyncManager();
+            $sm->removeNode($_POST['node_id']);
+            $message = "Backup node removed.";
+        } elseif ($_POST['action'] === 'trigger_sync') {
+            $sm = new SyncManager();
+            $res = $sm->triggerSync();
+            if ($res['status'] === 'success') {
+                $message = "Sync Report: <br>" . implode("<br>", $res['results']);
+            } else {
+                $error = "Sync Failed: " . $res['message'];
+            }
+        } elseif ($_POST['action'] === 'set_receiver_secret') {
+            $secret = trim($_POST['receiver_secret']);
+            if (!empty($secret)) {
+                $configDir = '../config';
+                if (!is_dir($configDir)) mkdir($configDir, 0755, true);
+                if (file_put_contents($configDir . '/sync_secret.txt', $secret)) {
+                    $message = "Receiver Secret Key updated successfully.";
+                } else {
+                    $error = "Failed to save secret key. Check permissions.";
+                }
+            } else {
+                $error = "Secret key cannot be empty.";
+            }
+        } elseif ($_POST['action'] === 'refresh_status') {
+            $sm = new SyncManager();
+            $nodes = $sm->getNodes();
+            $results = [];
+            foreach ($nodes as $node) {
+                // Determine if we should check health
+                // Check all or just one? Let's check all on refresh.
+                $res = $sm->checkNodeHealth($node['id']);
+                // results is just for message
+            }
+            $message = "Node status refreshed.";
+        } elseif ($_POST['action'] === 'pull_from_node') {
+            $sm = new SyncManager();
+            $res = $sm->pullFromNode($_POST['node_id']);
+            if ($res['status'] === 'success') {
+                $message = "System Restored from Node: " . $res['message'];
+            } else {
+                $error = "Restore Failed: " . $res['message'];
+            }
+        } elseif ($_POST['action'] === 'backup') {
+>>>>>>> de2d3e066390ec45d4566fd63728cd7445024089
             $zipName = 'finance_backup_' . date('Y-m-d_H-i-s') . '.zip';
             $zipPath = sys_get_temp_dir() . '/' . $zipName;
             
@@ -43,19 +96,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 // Add Uploads
-                $uploadDir = '../uploads/';
+                $uploadDir = '../uploads';
                 if (is_dir($uploadDir)) {
+                    $realUploadDir = realpath($uploadDir);
                     $files = new RecursiveIteratorIterator(
-                        new RecursiveDirectoryIterator($uploadDir),
+                        new RecursiveDirectoryIterator($realUploadDir, RecursiveDirectoryIterator::SKIP_DOTS),
                         RecursiveIteratorIterator::LEAVES_ONLY
                     );
 
                     foreach ($files as $name => $file) {
-                        if (!$file->isDir()) {
-                            $filePath = $file->getRealPath();
-                            $relativePath = 'uploads/' . substr($filePath, strlen(realpath($uploadDir)) + 1);
-                            $zip->addFile($filePath, $relativePath);
-                        }
+                        $filePath = $file->getRealPath();
+                        $relativePath = 'uploads/' . substr($filePath, strlen($realUploadDir) + 1);
+                        $zip->addFile($filePath, $relativePath);
                     }
                 }
 
@@ -89,27 +141,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $message = "Database restored successfully. ";
                         }
 
-                        // 2. Restore Uploads
-                        if (is_dir($extractPath . '/uploads/')) {
-                            $files = new RecursiveIteratorIterator(
-                                new RecursiveDirectoryIterator($extractPath . '/uploads/'),
-                                RecursiveIteratorIterator::LEAVES_ONLY
+                        // 2. Restore Uploads (Vault)
+                        // Note: We use the same recursive copy logic to ensure the vault is fully restored
+                        if (is_dir($extractPath . '/uploads')) {
+                            $src = $extractPath . '/uploads';
+                            $dst = '../uploads';
+                            
+                            // Ensure destination exists
+                            if (!is_dir($dst)) @mkdir($dst, 0777, true);
+                            
+                            $iterator = new RecursiveIteratorIterator(
+                                new RecursiveDirectoryIterator($src, RecursiveDirectoryIterator::SKIP_DOTS),
+                                RecursiveIteratorIterator::SELF_FIRST
                             );
-
-                            foreach ($files as $name => $file) {
-                                if (!$file->isDir()) {
-                                    $filePath = $file->getRealPath();
-                                    $relativePath = substr($filePath, strlen(realpath($extractPath . '/uploads/')) + 1);
-                                    $destPath = '../uploads/' . $relativePath;
-                                    
-                                    $destDir = dirname($destPath);
-                                    if (!is_dir($destDir)) mkdir($destDir, 0777, true);
-                                    
-                                    copy($filePath, $destPath);
+                            
+                            foreach ($iterator as $item) {
+                                $target = $dst . DIRECTORY_SEPARATOR . $iterator->getSubPathName();
+                                if ($item->isDir()) {
+                                    if (!is_dir($target)) @mkdir($target, 0777, true);
+                                } else {
+                                    copy($item->getRealPath(), $target);
                                 }
                             }
-                            $message .= "Uploads synced.";
+                            $message .= "Document Vault restored successfully.";
                         }
+                        
+                        // Cleanup temp
+                        $this_recursiveRemove = function($dir) use (&$this_recursiveRemove) {
+                            if (!is_dir($dir)) return;
+                            $files = array_diff(scandir($dir), array('.','..'));
+                            foreach ($files as $file) {
+                                (is_dir("$dir/$file")) ? $this_recursiveRemove("$dir/$file") : unlink("$dir/$file");
+                            }
+                            return rmdir($dir);
+                        };
+                        $this_recursiveRemove($extractPath);
                         
                         header("Location: settings.php?message=" . urlencode($message));
                         exit;
@@ -226,6 +292,7 @@ require_once '../includes/header.php';
             </div>
         </div>
 
+<<<<<<< HEAD
         <!-- Sync Configuration Section -->
         <div class="border-t border-gray-100 dark:border-gray-700 pt-8">
             <div class="flex items-center justify-between mb-6">
@@ -302,10 +369,152 @@ require_once '../includes/header.php';
                     </form>
                 </div>
             </div>
+=======
+        <!-- High Availability Sync -->
+        <?php 
+        $sm = new SyncManager();
+        $nodes = $sm->getNodes();
+        ?>
+        <div class="mt-12">
+            <h3 class="font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                <span class="bg-blue-100 text-blue-600 p-1 rounded text-sm">📡</span> High Availability Sync Cluster
+                <a href="maintenance_sync.php" class="ml-auto text-xs font-medium text-blue-600 hover:underline flex items-center gap-1">
+                    How to Connect/Setup? <span>↗</span>
+                </a>
+            </h3>
+            
+            <div class="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+                <!-- Sync Trigger -->
+                <div class="p-4 bg-gray-50 dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center flex-wrap gap-2">
+                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                        Configured Nodes: <strong><?php echo count($nodes); ?></strong> (Max 6 recom.)
+                    </p>
+                    <div class="flex gap-2">
+                        <form method="POST">
+                            <input type="hidden" name="action" value="refresh_status">
+                            <button class="px-3 py-1.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg text-xs font-bold transition flex items-center gap-1">
+                                🔄 Refresh Status
+                            </button>
+                        </form>
+                        <form method="POST">
+                            <input type="hidden" name="action" value="trigger_sync">
+                            <button class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-sm shadow-blue-500/20">
+                                🚀 Trigger Sync Now
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Node List -->
+                <div class="divide-y divide-gray-100 dark:divide-gray-700">
+                    <?php if (empty($nodes)): ?>
+                        <div class="p-6 text-center text-sm text-gray-400 italic">No backup nodes configured. Add one below.</div>
+                    <?php else: ?>
+                        <?php foreach($nodes as $node): 
+                            $isOnline = ($node['status'] ?? '') === 'Online';
+                            $lastSeenText = 'Never';
+                            if (!empty($node['last_seen'])) {
+                                $diff = time() - $node['last_seen'];
+                                if ($diff < 60) $lastSeenText = 'Just now';
+                                elseif ($diff < 3600) $lastSeenText = floor($diff/60) . 'm ago';
+                                else $lastSeenText = floor($diff/3600) . 'h ago';
+                            }
+                        ?>
+                        <div class="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-800/50 transition group">
+                            <div>
+                                <h4 class="font-bold text-sm text-gray-900 dark:text-white flex items-center gap-2">
+                                    <?php echo htmlspecialchars($node['name']); ?>
+                                    <span class="text-[9px] px-1.5 py-0.5 rounded <?php echo $isOnline ? 'bg-emerald-100 text-emerald-600 border border-emerald-200' : 'bg-red-50 text-red-500 border border-red-100'; ?>">
+                                        <?php echo $isOnline ? '● Online' : '○ Offline'; ?>
+                                    </span>
+                                </h4>
+                                <div class="flex items-center gap-3 mt-1.5">
+                                    <span class="text-[10px] text-gray-400 font-mono bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded"><?php echo htmlspecialchars($node['url']); ?></span>
+                                    
+                                    <span class="text-[10px] text-gray-400 flex items-center gap-1">
+                                        <span>👁️</span> <?php echo $lastSeenText; ?>
+                                    </span>
+                                    
+                                    <?php if($node['last_sync']): ?>
+                                        <span class="text-[10px] text-green-600 flex items-center gap-1">
+                                            <span>✓</span> Synced: <?php echo date('M j, H:i', strtotime($node['last_sync'])); ?>
+                                        </span>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <form method="POST" onsubmit="return confirm('⚠️ DANGER: This will OVERWRITE your local data with data from this backup node. Are you sure?');">
+                                    <input type="hidden" name="action" value="pull_from_node">
+                                    <input type="hidden" name="node_id" value="<?php echo $node['id']; ?>">
+                                    <button class="text-[10px] bg-white border border-gray-200 hover:border-amber-400 hover:text-amber-600 text-gray-400 px-2 py-1 rounded font-bold transition flex items-center gap-1" title="Restore System from this Node">
+                                        <span>↩️</span> RESTORE
+                                    </button>
+                                </form>
+                                <form method="POST" onsubmit="return confirm('Remove this node?');">
+                                    <input type="hidden" name="action" value="remove_node">
+                                    <input type="hidden" name="node_id" value="<?php echo $node['id']; ?>">
+                                    <button class="text-[10px] text-red-300 hover:text-red-600 hover:bg-red-50 p-1.5 rounded font-bold transition" title="Remove Node">🗑️</button>
+                                </form>
+                            </div>
+                        </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </div>
+
+                <!-- Add Node Form -->
+                <div class="p-4 bg-gray-50 dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700">
+                    <form method="POST" class="flex flex-wrap gap-2 items-center">
+                        <input type="hidden" name="action" value="add_node">
+                        <input type="text" name="node_name" placeholder="Name (e.g. Pi Backup)" required class="flex-grow min-w-[120px] bg-white dark:bg-gray-900 border-none rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-blue-500 shadow-sm">
+                        <input type="url" name="node_url" placeholder="URL (http://1.2.3.4/app)" required class="flex-[2] min-w-[200px] bg-white dark:bg-gray-900 border-none rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-blue-500 shadow-sm">
+                        <input type="password" name="node_secret" placeholder="Secret Key" required class="flex-grow min-w-[120px] bg-white dark:bg-gray-900 border-none rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-blue-500 shadow-sm">
+                        <button class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-lg shadow-blue-500/30 transition uppercase tracking-wider whitespace-nowrap flex-shrink-0 ml-auto">ADD NODE</button>
+                    </form>
+                </div>
+            </div>
+            
+            <p class="mt-4 text-[10px] text-gray-400">
+                <strong>Setup:</strong> To configure <em>this machine</em> as a Backup Node, scroll down to the <strong>Receiver Node Configuration</strong> section below.
+            </p>
+            <div class="mt-8 pt-8 border-t border-gray-100 dark:border-gray-700">
+                <h3 class="font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                    <span class="bg-purple-100 text-purple-600 p-1 rounded text-sm">🛡️</span> Receiver Node Configuration
+                </h3>
+                <div class="bg-white dark:bg-gray-900 p-6 rounded-xl border border-gray-200 dark:border-gray-700">
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                        If this server is a <strong>Backup Node</strong>, set the Secret Key here to allow the Primary Server to push data.
+                    </p>
+                    
+                    <?php 
+                    $hasSecret = file_exists('../config/sync_secret.txt');
+                    $currentSecret = $hasSecret ? trim(file_get_contents('../config/sync_secret.txt')) : '';
+                    ?>
+                    
+                    <form method="POST" class="flex gap-3 items-end">
+                        <input type="hidden" name="action" value="set_receiver_secret">
+                        <div class="flex-grow">
+                            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Receiver Secret Key</label>
+                            <input type="text" name="receiver_secret" value="<?php echo htmlspecialchars($currentSecret); ?>" required 
+                                   class="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 outline-none"
+                                   placeholder="Enter a strong secret key">
+                        </div>
+                        <button type="submit" class="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-bold transition shadow-sm whitespace-nowrap">
+                            Save Secret
+                        </button>
+                    </form>
+                    <?php if($hasSecret): ?>
+                        <div class="mt-3 flex items-center gap-2 text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-3 py-2 rounded">
+                            <span>✅ Active & Ready to Receive Data</span>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+>>>>>>> de2d3e066390ec45d4566fd63728cd7445024089
         </div>
 
         <div class="mt-12 pt-8 border-t border-gray-100 italic text-[10px] text-gray-400 text-center">
-            Finance Board v2.0 • Data is stored locally in SQLite and Uploads directory.
+            Finance Board v2.1.0 • Data is stored locally in SQLite and Uploads directory.
         </div>
     </div>
 </div>

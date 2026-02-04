@@ -192,6 +192,9 @@ $incomes = $stmt->fetchAll();
                     <tr>
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                             <?php echo date('F Y', strtotime($row['month'])); ?>
+                            <?php if ($row['accounting_date'] < SYSTEM_START_DATE): ?>
+                                <div class="text-[8px] text-amber-600 font-bold uppercase">Reference Only (Pre-Active)</div>
+                            <?php endif; ?>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             <?php echo date('d M Y', strtotime($row['accounting_date'])); ?>

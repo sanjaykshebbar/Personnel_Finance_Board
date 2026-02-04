@@ -14,13 +14,15 @@ A premium, lightweight personal finance dashboard built for high-performance and
 - **🛡️ Document Vault**: Organize your financial documents (payslips, receipts, sanction letters) in a secure, directory-based file manager.
 - **🤝 Lending Tracker**: Manage money lent and borrowed with automated settlement logic and progress bars.
 - **💳 Credit Monitor**: Track card limits and real-time utilization to maintain high credit scores.
+- **🔄 Universal OTA Updates**: Perform one-click updates directly from the web interface across Windows, Linux, and Docker.
 
 ## 🚀 Easy Deployment
 
-### Option 1: Automated Installer (Ubuntu/Debian)
-The fastest way to install on a fresh Linux server. This script installs Apache, PHP, and sets up everything for you.
+### Option 1: Automated Installer (Linux/Raspberry Pi)
+The fastest way to install on a fresh Linux server. This script installs dependencies, sets up the app, and configures everything for you.
 ```bash
-sudo bash install.sh
+# Download and run the installer
+curl -sS https://raw.githubusercontent.com/sanjaykshebbar/Personnel_Finance_Board/master/install.sh | sudo bash
 ```
 
 ### Option 2: Docker (Recommended)
@@ -39,6 +41,17 @@ Perfect for any machine with Docker. Highly portable and persistent.
 
 > [!NOTE]
 > Data is persisted in the local `./db` and `./uploads` folders.
+
+## 🔄 Updating the Application
+
+This board features a built-in **Universal Over-The-Air (OTA) Update System**.
+
+1. Navigate to the **System Update** (🔄) menu.
+2. Click **Check for Updates** to see if a newer version is available.
+3. Click **Update Now** to automatically backup your database, pull the latest code, and restart the service.
+
+> [!TIP]
+> **Automatic Backups**: The system creates a database backup before every update. You can rollback to any previous version using the **Rollback** button in the update UI.
 
 ## 🛰️ Maintenance & Backup
 

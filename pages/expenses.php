@@ -8,10 +8,12 @@ $userId = getCurrentUserId();
 
 // Load Payment Methods dynamically from credit_accounts + default options
 $paymentMethods = ['Bank Account', 'Cash']; // Default options
+$allCards = [];
 $creditStmt = $pdo->prepare("SELECT provider_name FROM credit_accounts WHERE user_id = ? ORDER BY provider_name");
 $creditStmt->execute([$userId]);
 while ($row = $creditStmt->fetch()) {
     $paymentMethods[] = $row['provider_name'];
+    $allCards[] = $row['provider_name'];
 }
 
 // Fetch Active Loans & EMIs for Linking
@@ -30,7 +32,7 @@ $categories = [
     'Home Internet - Bangalore', 'Home Internet - Home',
     'Electricity - Bangalore', 'Electricity - Home',
     'Transport - Daily/Cabs', 'Transport - Outstation',
-    'LPG Gas', 'HomeRent'
+    'LPG Gas', 'HomeRent', 'Credit Card Bill'
 ];
 
 // Handle POST (Add/Delete)
@@ -146,6 +148,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
             } 
+            elseif ($category === 'Credit Card Bill' && !empty($_POST['target_card_name'])) {
+                $targetCard = $_POST['target_card_name'];
+                // Reduce 'used_amount' (Manual Base Used) in credit_accounts
+                $stmt = $pdo->prepare("UPDATE credit_accounts SET used_amount = used_amount - ? WHERE provider_name = ? AND user_id = ?");
+                $stmt->execute([$amount, $targetCard, $userId]);
+                $_SESSION['flash_message'] = "Credit Card Bill recorded & Debt reduced on $targetCard! ✅";
+            }
             else {
                 $_SESSION['flash_message'] = "Expense added successfully.";
             }
@@ -190,7 +199,11 @@ $expenses = $stmt->fetchAll();
 
 // Calculate Total for view
 $totalView = 0;
-foreach($expenses as $e) $totalView += $e['amount'];
+foreach($expenses as $e) {
+    if ($e['date'] >= $cutoffDate) {
+        $totalView += $e['amount'];
+    }
+}
 ?>
 
 <div class="space-y-6">
@@ -206,8 +219,15 @@ foreach($expenses as $e) $totalView += $e['amount'];
             </div>
             <div class="col-span-1">
                 <label class="text-xs font-bold text-gray-700">Category</label>
-                <select name="category" class="w-full border p-2 rounded text-sm">
+                <select name="category" id="expCategory" class="w-full border p-2 rounded text-sm">
                     <?php foreach($categories as $c) echo "<option>$c</option>"; ?>
+                </select>
+            </div>
+            <div class="col-span-1 hidden" id="targetCardContainer">
+                <label class="text-xs font-bold text-gray-700">Target Card</label>
+                <select name="target_card_name" class="w-full border p-2 rounded text-sm bg-brand-50 border-brand-200">
+                    <option value="">-- Select Card --</option>
+                    <?php foreach($allCards as $c) echo "<option value=\"$c\">$c</option>"; ?>
                 </select>
             </div>
             <div class="col-span-1 lg:col-span-2">
@@ -312,7 +332,12 @@ foreach($expenses as $e) $totalView += $e['amount'];
                 <tbody class="divide-y divide-gray-200">
                     <?php foreach ($expenses as $row): ?>
                     <tr>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?php echo htmlspecialchars($row['date']); ?></td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <?php echo htmlspecialchars($row['date']); ?>
+                            <?php if ($row['date'] < SYSTEM_START_DATE): ?>
+                                <div class="text-[8px] text-amber-600 font-bold uppercase">Reference Only (Pre-Active)</div>
+                            <?php endif; ?>
+                        </td>
                         <td class="px-6 py-4 text-sm text-gray-900">
                             <?php echo htmlspecialchars($row['description']); ?>
                             <div class="text-xs text-gray-400 mt-1">Paid via <?php echo htmlspecialchars($row['payment_method']); ?></div>
@@ -404,6 +429,8 @@ foreach($expenses as $e) $totalView += $e['amount'];
 
 <script>
 const expMethod = document.getElementById('expMethod');
+const expCategory = document.getElementById('expCategory');
+const targetCardContainer = document.getElementById('targetCardContainer');
 const emiToggleContainer = document.getElementById('emiToggleContainer');
 const expEmiFields = document.getElementById('expEmiFields');
 const convertToEmi = document.getElementById('convertToEmi');
@@ -425,7 +452,16 @@ function updateEmiVisibility() {
         expEmiFields.classList.add('hidden');
         convertToEmi.checked = false;
     }
+
+    // Toggle Target Card if "Credit Card Bill"
+    if (expCategory.value === 'Credit Card Bill') {
+        targetCardContainer.classList.remove('hidden');
+    } else {
+        targetCardContainer.classList.add('hidden');
+    }
 }
+
+expCategory.addEventListener('change', updateEmiVisibility);
 
 function calculateExpEmi() {
     const p = parseFloat(document.getElementById('expAmount').value) || 0;

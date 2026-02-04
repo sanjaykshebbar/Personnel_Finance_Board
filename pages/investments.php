@@ -192,8 +192,15 @@ $colorPalette = [
 ];
 
 foreach ($plans as $plan) {
-    $masterLabels[] = $plan['name'];
-    $masterValues[] = $plan['paid_count'] * $plan['amount'];
+    // FIXED: Calculate paid value from history with date filter (Reference Only logic)
+    $valStmt = $pdo->prepare("SELECT SUM(amount) FROM investments WHERE plan_id = ? AND user_id = ? AND due_date >= ?");
+    $valStmt->execute([$plan['id'], $userId, $cutoffDate]);
+    $realPaidVal = $valStmt->fetchColumn() ?: 0;
+    
+    if ($realPaidVal > 0) {
+        $masterLabels[] = $plan['name'];
+        $masterValues[] = $realPaidVal;
+    }
 }
 
 ?>
@@ -302,6 +309,9 @@ foreach ($plans as $plan) {
                                 <?php echo $plan['category']; ?> • <?php echo $plan['type']; ?>
                             </span>
                             <h3 class="text-lg font-bold text-gray-900 mt-1"><?php echo htmlspecialchars($plan['name']); ?></h3>
+                            <?php if ($plan['start_date'] < SYSTEM_START_DATE): ?>
+                                <span class="inline-block px-1.5 py-0.5 bg-amber-50 text-amber-600 rounded text-[8px] font-bold uppercase tracking-widest border border-amber-100">Reference Only (Pre-Active)</span>
+                            <?php endif; ?>
                         </div>
                         <div class="text-right">
                             <p class="text-xl font-bold text-gray-900">₹<?php echo number_format($plan['amount']); ?></p>

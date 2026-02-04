@@ -10,14 +10,11 @@ require_once 'includes/header.php';
 $userId = getCurrentUserId();
 $currentMonth = $_GET['month'] ?? date('Y-m');
 // --- Constants for accounting ---
-$cutoffDate = '2026-01-20';
-// FIXED: Changed shift to +5 days so late Jan (e.g. 30th) counts as Feb.
-// Feb 1st + 5 days = Feb 6th (Feb).
-$monthShift = '+5 days';
+$startMonth = substr(SYSTEM_START_DATE, 0, 7); // "2026-02"
 
 // 1. Total Income (Current Month)
 // Fixed: Income is now attributed based on 'month' (User selected Budget Month)
-$stmt = $pdo->prepare("SELECT SUM(total_income) as total FROM income WHERE month = ? AND user_id = ? AND month >= '2026-01'");
+$stmt = $pdo->prepare("SELECT SUM(total_income) as total FROM income WHERE month = ? AND user_id = ? AND accounting_date >= '" . SYSTEM_START_DATE . "'");
 $stmt->execute([$currentMonth, $userId]);
 $incomeCurrent = $stmt->fetch()['total'] ?? 0;
 
@@ -26,50 +23,52 @@ $incomeCurrent = $stmt->fetch()['total'] ?? 0;
 // OR we sum everything in expenses and don't sum investments separately. 
 // Let's sum EVERYTHING in expenses and then show specific cards.
 // FIXED: Exclude expenses that are 'converted_to_emi' (1) to avoid double counting (Initial + EMI installments)
-$stmt = $pdo->prepare("SELECT SUM(amount) as total FROM expenses WHERE date(date, ?) LIKE ? AND date >= ? AND user_id = ? AND converted_to_emi = 0");
-$stmt->execute([$monthShift, $currentMonth . '%', $cutoffDate, $userId]);
+$stmt = $pdo->prepare("SELECT SUM(amount) as total FROM expenses WHERE strftime('%Y-%m', date) = ? AND date >= '" . SYSTEM_START_DATE . "' AND user_id = ? AND converted_to_emi = 0");
+$stmt->execute([$currentMonth, $userId]);
 $expensesCurrent = $stmt->fetch()['total'] ?? 0;
 
-// 3. Total Investments (Current Month - Shifted)
+// 3. Total Investments (Current Month)
 // To avoid double counting in Balance calculation, we keep this for the card view ONLY.
-$stmt = $pdo->prepare("SELECT SUM(amount) as total FROM investments WHERE strftime('%Y-%m', date(due_date, ?)) = ? AND due_date >= ? AND user_id = ?");
-$stmt->execute([$monthShift, $currentMonth, $cutoffDate, $userId]);
+$stmt = $pdo->prepare("SELECT SUM(amount) as total FROM investments WHERE strftime('%Y-%m', due_date) = ? AND due_date >= '" . SYSTEM_START_DATE . "' AND user_id = ?");
+$stmt->execute([$currentMonth, $userId]);
 $investmentsCurrent = $stmt->fetch()['total'] ?? 0;
 
 // 4. Carry Forward (Previous Month Remaining Balance)
-// 4. Carry Forward (Previous Month Remaining Balance)
-$stmt = $pdo->prepare("SELECT SUM(total_income) FROM income WHERE month < ? AND month >= '2026-01' AND user_id = ?");
-$stmt->execute([$currentMonth, $userId]);
-$pastIncome = $stmt->fetchColumn() ?? 0;
+if ($currentMonth <= $startMonth) {
+    $carryForward = 0;
+} else {
+    $stmt = $pdo->prepare("SELECT SUM(total_income) FROM income WHERE month < ? AND accounting_date >= '" . SYSTEM_START_DATE . "' AND user_id = ?");
+    $stmt->execute([$currentMonth, $userId]);
+    $pastIncome = $stmt->fetchColumn() ?? 0;
 
-$stmt = $pdo->prepare("SELECT SUM(amount) FROM expenses WHERE date(date, ?) < ? AND date >= ? AND user_id = ?");
-$stmt->execute([$monthShift, $currentMonth . '-01', $cutoffDate, $userId]);
-$pastExpenses = $stmt->fetchColumn() ?? 0;
+    $stmt = $pdo->prepare("SELECT SUM(amount) FROM expenses WHERE strftime('%Y-%m', date) < ? AND date >= '" . SYSTEM_START_DATE . "' AND user_id = ? AND converted_to_emi = 0");
+    $stmt->execute([$currentMonth, $userId]);
+    $pastExpenses = $stmt->fetchColumn() ?? 0;
 
-// FIXED: Removed $pastInvestments and $pastEmis from deduction because they are already recorded in expenses table.
-$carryForward = $pastIncome - $pastExpenses;
+    $carryForward = $pastIncome - $pastExpenses;
+}
 
 // 5. Total Balance Available (This Month)
 $totalAvailable = $incomeCurrent + $carryForward;
 
-// 6. Current Month EMIs (Shifted) - KEEPING for Display/Analytics if needed, but NOT for Balance Calculation
-$stmt = $pdo->prepare("SELECT SUM(emi_amount) FROM emis WHERE status = 'Active' AND user_id = ? AND date(start_date, ?) <= ?");
-$stmt->execute([$userId, $monthShift, $currentMonth . "-31"]);
+// 6. Current Month EMIs - KEEPING for Display/Analytics if needed, but NOT for Balance Calculation
+$stmt = $pdo->prepare("SELECT SUM(emi_amount) FROM emis WHERE status = 'Active' AND user_id = ? AND start_date <= ? AND start_date >= '" . SYSTEM_START_DATE . "'");
+$stmt->execute([$userId, $currentMonth . "-31"]);
 $emisCurrent = $stmt->fetchColumn() ?? 0;
 
 // 7. Remaining Savings (This Month)
 // Fixed: Balance = Total Available - Expenses (Expenses now include EMIs and Investments)
 $remainingSavings = $totalAvailable - $expensesCurrent;
 
-// 7. Spending by Category (Current Month - Shifted)
+// 7. Spending by Category (Current Month)
 $catStmt = $pdo->prepare("
     SELECT category, SUM(amount) as total 
     FROM expenses 
-    WHERE date(date, ?) LIKE ? AND date >= ? AND user_id = ? AND converted_to_emi = 0
+    WHERE strftime('%Y-%m', date) = ? AND date >= '" . SYSTEM_START_DATE . "' AND user_id = ? AND converted_to_emi = 0
     GROUP BY category 
     ORDER BY total DESC
 ");
-$catStmt->execute([$monthShift, $currentMonth . '%', $cutoffDate, $userId]);
+$catStmt->execute([$currentMonth, $userId]);
 $categorySpending = $catStmt->fetchAll();
 
 $chartLabels = [];
@@ -83,8 +82,8 @@ foreach($categorySpending as $c) {
 // Credit Utilization Calculation
 $creditStmt = $pdo->prepare("
     SELECT ca.*, 
-    (SELECT IFNULL(SUM(amount), 0) FROM expenses WHERE payment_method = ca.provider_name AND converted_to_emi = 0 AND user_id = ca.user_id) as one_time_expenses,
-    (SELECT IFNULL(SUM(total_amount - (emi_amount * paid_months)), 0) FROM emis WHERE payment_method = ca.provider_name AND user_id = ca.user_id AND status = 'Active') as emi_outstanding
+    (SELECT IFNULL(SUM(amount), 0) FROM expenses WHERE payment_method = ca.provider_name AND converted_to_emi = 0 AND user_id = ca.user_id AND date >= '" . SYSTEM_START_DATE . "') as one_time_expenses,
+    (SELECT IFNULL(SUM(total_amount - (emi_amount * paid_months)), 0) FROM emis WHERE payment_method = ca.provider_name AND user_id = ca.user_id AND status = 'Active' AND start_date >= '" . SYSTEM_START_DATE . "') as emi_outstanding
     FROM credit_accounts ca 
     WHERE ca.user_id = ?
 ");
@@ -127,8 +126,6 @@ foreach($borrowedLoans as $l) {
     if ($l['status'] === 'Settled') {
         $totalBorrowedPaid += $l['amount'];
     } else {
-        // FIXED: Use 'paid_amount' column as source of truth. 
-        // Previously we calculated (emi * months), which ignored partial/manual payments.
         $totalBorrowedPaid += $l['paid_amount']; 
     }
 }
@@ -142,7 +139,6 @@ $lentLoans = $lentStmt->fetchAll();
 $totalLentPrincipal = 0;
 $totalLentReceived = 0;
 foreach($lentLoans as $l) {
-    $totalLentPrincipal += $l['amount'];
     $totalLentPrincipal += $l['amount'];
     if ($l['status'] === 'Settled') {
         $totalLentReceived += $l['amount'];
@@ -183,7 +179,6 @@ foreach($savingsBreakdown as $s) {
         <div>
             <div class="flex items-center gap-2">
                 <h2 class="text-xl font-bold text-gray-900 dark:text-white">Dashboard Overview</h2>
-                <span class="px-2 py-0.5 bg-brand-50 text-brand-600 rounded text-[9px] font-bold uppercase tracking-widest border border-brand-100" title="Transactions from 1st-5th of next month are included here">Shifted Financial Month</span>
             </div>
             <p class="text-sm text-gray-500 dark:text-gray-400">Viewing data for <?php echo date('F Y', strtotime($currentMonth."-01")); ?></p>
         </div>
@@ -213,7 +208,7 @@ foreach($savingsBreakdown as $s) {
                 <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400">Carry Forward</h3>
                 <span class="p-2 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full text-sm">↪️</span>
             </div>
-            <p class="text-2xl font-bold text-gray-900 dark:text-white">₹<?php echo number_format($carryForward, 2); ?></p>
+            <p class="text-2xl font-bold <?php echo $carryForward < 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'; ?>">₹<?php echo number_format($carryForward, 2); ?></p>
         </div>
 
         <!-- Expenses -->
@@ -352,12 +347,17 @@ foreach($savingsBreakdown as $s) {
                 </thead>
                 <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                     <?php
-                    $recStmt = $pdo->prepare("SELECT * FROM expenses WHERE user_id = ? AND strftime('%Y-%m', date(date, ?)) = ? ORDER BY date DESC LIMIT 5");
-                    $recStmt->execute([$userId, $monthShift, $currentMonth]);
+                    $recStmt = $pdo->prepare("SELECT * FROM expenses WHERE user_id = ? AND strftime('%Y-%m', date) = ? ORDER BY date DESC LIMIT 5");
+                    $recStmt->execute([$userId, $currentMonth]);
                     while ($row = $recStmt->fetch()):
                     ?>
                     <tr class="hover:bg-gray-25 dark:hover:bg-gray-900/30 transition-colors">
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400"><?php echo htmlspecialchars($row['date']); ?></td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                            <?php echo htmlspecialchars($row['date']); ?>
+                            <?php if ($row['date'] < SYSTEM_START_DATE): ?>
+                                <div class="text-[8px] text-amber-600 font-bold uppercase">Pre-Active</div>
+                            <?php endif; ?>
+                        </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white"><?php echo htmlspecialchars($row['description']); ?></td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200">
