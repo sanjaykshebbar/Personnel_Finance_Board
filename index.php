@@ -41,8 +41,18 @@ if ($currentMonth <= $startMonth) {
     $stmt->execute([$currentMonth, $userId]);
     $pastIncome = $stmt->fetchColumn() ?? 0;
 
-    $stmt = $pdo->prepare("SELECT SUM(amount) FROM expenses WHERE strftime('%Y-%m', date) < ? AND date >= '" . SYSTEM_START_DATE . "' AND user_id = ? AND converted_to_emi = 0");
-    $stmt->execute([$currentMonth, $userId]);
+    // FIXED: Carry forward should calculate 'Cash/Bank Position', so we exclude credit card spending (Liabilities).
+    // This assumes Credit Card Bill Payments are recorded as separate expenses/transfers from Bank.
+    $stmt = $pdo->prepare("
+        SELECT SUM(amount) 
+        FROM expenses 
+        WHERE strftime('%Y-%m', date) < ? 
+        AND date >= '" . SYSTEM_START_DATE . "' 
+        AND user_id = ? 
+        AND converted_to_emi = 0
+        AND TRIM(LOWER(payment_method)) NOT IN (SELECT TRIM(LOWER(provider_name)) FROM credit_accounts WHERE user_id = ?)
+    ");
+    $stmt->execute([$currentMonth, $userId, $userId]);
     $pastExpenses = $stmt->fetchColumn() ?? 0;
 
     $carryForward = $pastIncome - $pastExpenses;
@@ -57,8 +67,21 @@ $stmt->execute([$userId, $currentMonth . "-31"]);
 $emisCurrent = $stmt->fetchColumn() ?? 0;
 
 // 7. Remaining Savings (This Month)
-// Fixed: Balance = Total Available - Expenses (Expenses now include EMIs and Investments)
-$remainingSavings = $totalAvailable - $expensesCurrent;
+// Fixed: Balance = Total Available - Asset Expenses (Expenses paid via Bank/Cash)
+// We calculate Asset Expenses separately ensuring we exclude Credit Card spending.
+$stmt = $pdo->prepare("
+    SELECT SUM(amount) as total 
+    FROM expenses 
+    WHERE strftime('%Y-%m', date) = ? 
+    AND date >= '" . SYSTEM_START_DATE . "' 
+    AND user_id = ? 
+    AND converted_to_emi = 0
+    AND TRIM(LOWER(payment_method)) NOT IN (SELECT TRIM(LOWER(provider_name)) FROM credit_accounts WHERE user_id = ?)
+");
+$stmt->execute([$currentMonth, $userId, $userId]);
+$assetExpensesCurrent = $stmt->fetch()['total'] ?? 0;
+
+$remainingSavings = $totalAvailable - $assetExpensesCurrent;
 
 // 7. Spending by Category (Current Month)
 $catStmt = $pdo->prepare("
