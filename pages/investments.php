@@ -192,11 +192,8 @@ $colorPalette = [
 ];
 
 foreach ($plans as $plan) {
-    // FIXED: Calculate paid value from history with date filter (Reference Only logic)
-    // REPLACED $cutoffDate with SYSTEM_START_DATE
-    $valStmt = $pdo->prepare("SELECT SUM(amount) FROM investments WHERE plan_id = ? AND user_id = ? AND due_date >= '" . SYSTEM_START_DATE . "'");
-    $valStmt->execute([$plan['id'], $userId]);
-    $realPaidVal = $valStmt->fetchColumn() ?: 0;
+    // FIXED: Use paid_count * amount logic to capture LIFETIME total, matching the card UI.
+    $realPaidVal = $plan['paid_count'] * $plan['amount'];
     
     if ($realPaidVal > 0) {
         $masterLabels[] = $plan['name'];
