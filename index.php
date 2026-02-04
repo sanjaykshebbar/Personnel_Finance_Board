@@ -133,7 +133,10 @@ $creditUtilization = ($totalCreditLimit > 0) ? round(($totalCreditUsed / $totalC
 
 // Dashboard Summary Data
 $summaryIncome = $incomeCurrent;
-$summaryExpense = $expensesCurrent; // Removed + $emisCurrent
+// FIXED: Financial Summary Chart should reflect 'Cash Flow' (Bank Position).
+// So we use Asset Expenses (Bank/Cash) here, not Total Expenses (which includes Liabilities).
+// This ensures 'Savings' in the chart aligns with the 'Remaining Balance' logic (Cash in Hand).
+$summaryExpense = $assetExpensesCurrent; 
 $summarySavings = max(0, $summaryIncome - $summaryExpense);
 
 // 8. Loan Analytics
