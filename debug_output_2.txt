@@ -1,0 +1,30 @@
+--- DB PATH CHECK ---
+Config DB Path: C:\Users\sanjay.ks\Desktop\Work_Folder\Personnel_Project\expense-tracker\config/../db/finance.db
+Real Path: C:\Users\sanjay.ks\Desktop\Work_Folder\Personnel_Project\expense-tracker\db\finance.db
+Size: 57344 bytes
+
+--- USERS ---
+Array
+(
+    [0] => Array
+        (
+            [id] => 1
+            [name] => Sanjay KS
+            [email] => sanjaykshebbar@gmail.com
+            [password] => $2y$10$h0K/B50voTLipagPXCaCOOMltjJ3wCkhcNZ8vAmKM7R./KwVglu1.
+            [created_at] => 2026-02-01 12:40:17
+        )
+
+)
+
+--- CREDIT ACCOUNTS ---
+Array
+(
+)
+
+--- NON-CASH EXPENSES ---
+Array
+(
+)
+
+--- MATCHING TEST ---

@@ -1,0 +1,6 @@
+--- DEBUG INFO ---
+SYSTEM_START_DATE: 2026-02-01
+
+--- Credit Accounts ---
+
+--- Expenses (Last 10 Credit Card Type) ---
