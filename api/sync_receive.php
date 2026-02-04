@@ -4,6 +4,16 @@
 // Disable timeout for large syncs
 set_time_limit(300);
 
+// Allow CORS
+header("Access-Control-Allow-Origin: *");
+header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
+header("Access-Control-Allow-Headers: Content-Type, X-Sync-Key");
+
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit;
+}
+
 require_once '../config/database.php'; // For any DB utils, mostly we need paths
 // Since this is a standalone entry point, define paths relative to this file
 $rootDir = realpath(__DIR__ . '/../');

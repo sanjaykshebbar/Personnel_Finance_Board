@@ -335,8 +335,9 @@ function checkAllNodes() {
             }
         })
         .catch(err => {
-            badge.className = "px-1.5 py-0.5 bg-red-100 text-red-700 text-[10px] font-bold uppercase rounded";
-            badge.innerText = "Offline";
+            badge.className = "px-1.5 py-0.5 bg-red-100 text-red-700 text-[10px] font-bold uppercase rounded cursor-help";
+            badge.innerText = "Error"; // Changed from Offline to Error to signal debug info
+            badge.title = err.message; // Show details on hover
             console.error(err);
         });
     });
