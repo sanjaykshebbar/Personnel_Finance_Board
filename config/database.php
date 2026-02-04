@@ -236,6 +236,11 @@ function initDb($pdo) {
             // We'll just use 'Borrowed' for Institutional loans and use source_institution to distinguish.
         }
     }
+
+    // 8. DATA FIX: Reset negative used_amount (often caused by over-restoring during EMI conversions)
+    try {
+        $pdo->exec("UPDATE credit_accounts SET used_amount = 0 WHERE used_amount < 0");
+    } catch (Exception $e) {}
 }
 
 // Auto-run init on include (for simplicity in this self-contained app)

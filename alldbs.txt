@@ -1,0 +1,14 @@
+C:\Program Files\Common Files\microsoft shared\ClickToRun\c2rclient.db
+C:\Program Files\NVIDIA Corporation\NVIDIA App\NvBackend\ApplicationOntology\data\fingerprint.db
+C:\Program Files (x86)\MSI\MSI Center\Lib\SCEWIN\5.05.01.0002\BIOSData.db
+C:\Program Files (x86)\Steam\steamapps\common\wallpaper_engine\ui\uicache\browsewallpapers\base\first_party_sets.db
+C:\Program Files (x86)\Steam\steamapps\common\wallpaper_engine\ui\uicache\welcome\base\first_party_sets.db
+C:\Users\sanjay.ks\.cursor\ai-tracking\ai-code-tracking.db
+C:\Users\sanjay.ks\.gemini\antigravity-browser-profile\first_party_sets.db
+C:\Users\sanjay.ks\.gemini\antigravity-browser-profile\Default\heavy_ad_intervention_opt_out.db
+C:\Users\sanjay.ks\Desktop\Work_Folder\Personnel_Project\expense-tracker\db\finance.db
+C:\Users\sanjay.ks\Desktop\Work_Folder\Personnel_Project\expense-tracker\db\backups\finance_20260202_153557_unknown.db
+C:\Users\sanjay.ks\Desktop\Work_Folder\Personnel_Project\expense-tracker\db\backups\finance_20260202_154122_5f04c67.db
+C:\Users\sanjay.ks\Documents\Rockstar Games\Social Club\Launcher\Renderer\databases\Databases.db
+C:\xampp\htdocs\finance-board\expense-tracker\db\finance.db
+C:\xampp\perl\vendor\lib\MIME\types.db
