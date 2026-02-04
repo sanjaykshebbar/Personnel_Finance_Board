@@ -1,6 +1,8 @@
 <?php
 require_once '../config/database.php';
 require_once '../includes/auth.php';
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 requireLogin();
 
 $userId = getCurrentUserId();
@@ -62,8 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['flash_message'] = "Payment of ₹" . number_format($paidAmount, 2) . " recorded on " . $paymentDate . ". " . 
                                             ($status === 'Completed' ? "EMI COMPLETED! 🎉" : ($emi['tenure_months'] - $newPaidMonths) . " payments remaining.");
             }
-        }
- else {
+        } else {
             $_SESSION['flash_message'] = "EMI not found.";
         }
     } else {
@@ -113,6 +114,8 @@ $emis = $stmt->fetchAll();
 $stmt = $pdo->prepare("SELECT provider_name FROM credit_accounts WHERE user_id = ?");
 $stmt->execute([$userId]);
 $providers = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+$isCompleted = false; // Initialize to avoid notice if no EMIs exist
 ?>
 
 <div class="max-w-4xl mx-auto space-y-6">
@@ -168,7 +171,8 @@ $providers = $stmt->fetchAll(PDO::FETCH_COLUMN);
                     <div class="w-12 h-12 flex-shrink-0">
                         <canvas id="emi-chart-<?php echo $emi['id']; ?>" class="emi-chart" 
                                 data-paid="<?php echo $paid; ?>" 
-                                data-pending="<?php echo max(0, $totalMonths - $paid); ?>"></canvas>
+                                data-pending="<?php echo max(0, $totalMonths - $paid); ?>"
+                                data-color="<?php echo $isCompleted ? '#10b981' : '#4f46e5'; ?>"></canvas>
                     </div>
                     <div class="flex-grow">
                         <div class="flex justify-between text-xs text-gray-600 mb-1">
@@ -220,8 +224,8 @@ document.querySelectorAll('.emi-chart').forEach(canvas => {
         type: 'pie',
         data: {
             datasets: [{
-                data: [paid, max(0.1, pending)], // Ensure chart shows even if 0 pending
-                backgroundColor: [<?php echo $isCompleted ? "'#10b981'" : "'#4f46e5'"; ?>, '#f3f4f6'],
+                data: [paid, max(0.1, pending)],
+                backgroundColor: [canvas.dataset.color, '#f3f4f6'],
                 borderWidth: 0
             }]
         },

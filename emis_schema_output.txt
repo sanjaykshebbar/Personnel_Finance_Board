@@ -1,0 +1,14 @@
+id: INTEGER
+user_id: INTEGER
+name: TEXT
+total_amount: REAL
+interest_rate: REAL
+tenure_months: INTEGER
+emi_amount: REAL
+paid_months: INTEGER
+start_date: DATE
+status: TEXT
+created_at: DATETIME
+payment_method: TEXT
+expense_id: INTEGER
+initial_paid_installments: INTEGER
