@@ -76,11 +76,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                  }
             }
 
-            // Insert Expense
+            // Insert Expense Logic
             $stmt = $pdo->prepare("INSERT INTO expenses (user_id, date, category, description, amount, payment_method, converted_to_emi) VALUES (?, ?, ?, ?, ?, ?, ?)");
             $isEmi = (isset($_POST['convert_to_emi']) && $_POST['convert_to_emi'] == 'on') ? 1 : 0;
             
-            // Transaction Start (Optional but good for complex logic)
+            // Auto-improve description for Credit Card bills to ensure they are searchable in history
+            if ($category === 'Credit Card Bill' && !empty($_POST['target_card_name'])) {
+                $target = $_POST['target_card_name'];
+                if (stripos($desc, $target) === false) {
+                    $desc = "Paid: " . $target . ($desc ? " (" . $desc . ")" : "");
+                }
+            }
+
+            // Transaction Start
             $pdo->beginTransaction();
             
             $stmt->execute([$userId, $date, $category, $desc, $amount, $method, $isEmi]);
@@ -97,7 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $r = ($interest / 100) / 12;
                 $n = $tenure;
                 if ($r > 0) {
-                    $emi = ($p * $r * pow(1 + $r, $n)) / (pow(1 + $r, $n) - 1);
+                    $emi = ($p * $r * Math.pow(1 + $r, $n)) / (Math.pow(1 + $r, $n) - 1);
                 } else {
                     $emi = $p / $n;
                 }
@@ -106,9 +114,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute([$userId, $desc, $amount, $interest, $tenure, $emi, $date, $method]);
             } 
             
-            // Handle Linking to Existing Loan/EMI (Two-Way Sync)
+            // Handle Linking to Existing Loan/EMI
             elseif (!empty($_POST['link_ref'])) {
-                // Re-parse (already validated above)
                 $ref = $_POST['link_ref']; 
                 $parts = explode('_', $ref);
                 $type = $parts[0];
@@ -118,7 +125,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmt = $pdo->prepare("UPDATE loans SET paid_amount = paid_amount + ? WHERE id = ? AND user_id = ?");
                     $stmt->execute([$amount, $id, $userId]);
                     
-                    // Check Settlement
                     $chk = $pdo->prepare("SELECT amount, paid_amount FROM loans WHERE id = ?");
                     $chk->execute([$id]);
                     $ln = $chk->fetch();
@@ -130,13 +136,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
 
                 } elseif ($type === 'EMI') {
-                    // Increment paid months by 1 (Assuming 1 expense = 1 EMI usually, or we could calculate fraction but strict count is safer for EMI)
-                    // Actually, user might pay custom amount. Best constraint is strictly tracking payments.
-                    // For EMIs, we track 'paid_months'. 
                     $stmt = $pdo->prepare("UPDATE emis SET paid_months = paid_months + 1 WHERE id = ? AND user_id = ?");
                     $stmt->execute([$id, $userId]);
                     
-                    // Check Completion
                      $chk = $pdo->prepare("SELECT paid_months, tenure_months FROM emis WHERE id = ?");
                     $chk->execute([$id]);
                     $em = $chk->fetch();
@@ -150,7 +152,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } 
             elseif ($category === 'Credit Card Bill' && !empty($_POST['target_card_name'])) {
                 $targetCard = $_POST['target_card_name'];
-                // Reduce 'used_amount' (Manual Base Used) in credit_accounts
                 $stmt = $pdo->prepare("UPDATE credit_accounts SET used_amount = used_amount - ? WHERE provider_name = ? AND user_id = ?");
                 $stmt->execute([$amount, $targetCard, $userId]);
                 $_SESSION['flash_message'] = "Credit Card Bill recorded & Debt reduced on $targetCard! ✅";
@@ -178,7 +179,7 @@ $filterMonth = $_GET['month'] ?? date('Y-m');
 $filterCategory = $_GET['category'] ?? '';
 $filterMethod = $_GET['method'] ?? '';
 
-// Build Query (Using shifted month logic)
+// Build Query
 $query = "SELECT * FROM expenses WHERE strftime('%Y-%m', date) = ? AND user_id = ?";
 $params = [$filterMonth, $userId];
 
@@ -197,19 +198,15 @@ $stmt = $pdo->prepare($query);
 $stmt->execute($params);
 $expenses = $stmt->fetchAll();
 
-// Calculate Total for view
+// Calculate Total
 $totalView = 0;
 foreach($expenses as $e) {
-    if ($e['date'] >= $cutoffDate) {
-        $totalView += $e['amount'];
-    }
+    $totalView += $e['amount'];
 }
 ?>
 
 <div class="space-y-6">
-    <!-- Success Msg -->
-
-    <!-- Add Expense Form (Collapsible or visible) -->
+    <!-- Add Expense Form -->
     <div class="bg-white p-6 rounded-lg shadow">
         <h2 class="text-lg font-bold mb-4">Add Expense</h2>
         <form method="POST" id="expenseForm" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 items-end">
@@ -267,7 +264,7 @@ foreach($expenses as $e) {
                  </select>
             </div>
 
-            <!-- EMI Toggle (Only for CC/Later) -->
+            <!-- EMI Toggle -->
             <div id="emiToggleContainer" class="col-span-1 md:col-span-2 lg:col-span-6 hidden">
                 <div class="flex items-center space-x-2 p-2 bg-brand-50 rounded border border-brand-100">
                     <input type="checkbox" name="convert_to_emi" id="convertToEmi" class="w-4 h-4 text-brand-600">
@@ -292,7 +289,7 @@ foreach($expenses as $e) {
             </div>
 
             <div class="col-span-1 md:col-span-2 lg:col-span-6">
-                <button type="submit" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 rounded">Add Expense</button>
+                <button type="submit" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 rounded transition shadow-md">Add Expense</button>
             </div>
         </form>
     </div>
@@ -316,58 +313,55 @@ foreach($expenses as $e) {
     </div>
 
     <!-- Table -->
-    <div class="bg-white shadow rounded-lg overflow-x-auto">
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                    <tr>
-                        <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Date</th>
-                        <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Description</th>
-                        <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Category</th>
-
-                        <th class="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase">Amount</th>
-                        <th class="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase">Action</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-200">
-                    <?php foreach ($expenses as $row): ?>
-                    <tr>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <?php echo htmlspecialchars($row['date']); ?>
-                            <?php if ($row['date'] < SYSTEM_START_DATE): ?>
-                                <div class="text-[8px] text-amber-600 font-bold uppercase">Reference Only (Pre-Active)</div>
-                            <?php endif; ?>
-                        </td>
-                        <td class="px-6 py-4 text-sm text-gray-900">
-                            <?php echo htmlspecialchars($row['description']); ?>
-                            <div class="text-xs text-gray-400 mt-1">Paid via <?php echo htmlspecialchars($row['payment_method']); ?></div>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <span class="bg-gray-100 text-gray-800 text-xs font-semibold px-2 py-0.5 rounded"><?php echo htmlspecialchars($row['category']); ?></span>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm">
-                            <span class="font-bold text-gray-900">₹<?php echo number_format($row['amount'], 2); ?></span>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm space-x-3">
-                            <?php if(strpos(strtolower($row['payment_method']), 'credit') !== false || strpos(strtolower($row['payment_method']), 'later') !== false): ?>
-                                <button onclick='openEmiModal(<?php echo json_encode($row); ?>)' 
-                                        class="text-brand-600 hover:text-brand-800 text-xs font-bold uppercase tracking-wider">
-                                    Convert to EMI
-                                </button>
-                            <?php endif; ?>
-                            
-                            <form method="POST" onsubmit="return confirm('Delete?');" class="inline">
-                                <input type="hidden" name="delete_id" value="<?php echo $row['id']; ?>">
-                                <button type="submit" class="text-red-500 hover:text-red-700 font-bold">&times;</button>
-                            </form>
-                        </td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
+    <div class="bg-white shadow rounded-lg overflow-x-auto border border-gray-100">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Date</th>
+                    <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Description</th>
+                    <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Category</th>
+                    <th class="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase">Amount</th>
+                    <th class="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase">Action</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 bg-white">
+                <?php foreach ($expenses as $row): ?>
+                <tr class="hover:bg-gray-25 transition">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <?php echo htmlspecialchars($row['date']); ?>
+                        <?php if ($row['date'] < SYSTEM_START_DATE): ?>
+                            <div class="text-[8px] text-amber-600 font-bold uppercase">Reference Only (Pre-Active)</div>
+                        <?php endif; ?>
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-900">
+                        <div class="font-bold"><?php echo htmlspecialchars($row['description']); ?></div>
+                        <div class="text-[10px] text-gray-400">Paid via <?php echo htmlspecialchars($row['payment_method']); ?></div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                        <span class="bg-gray-100 text-gray-600 text-[10px] font-bold uppercase px-2 py-0.5 rounded"><?php echo htmlspecialchars($row['category']); ?></span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm">
+                        <span class="font-bold text-gray-900">₹<?php echo number_format($row['amount'], 2); ?></span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm space-x-3">
+                        <?php if(strpos(strtolower($row['payment_method']), 'credit') !== false || strpos(strtolower($row['payment_method']), 'later') !== false): ?>
+                            <button onclick='openEmiModal(<?php echo json_encode($row); ?>)' 
+                                    class="text-brand-600 hover:text-brand-800 text-xs font-bold uppercase tracking-wider">
+                                Convert to EMI
+                            </button>
+                        <?php endif; ?>
+                        
+                        <form method="POST" onsubmit="return confirm('Delete?');" class="inline">
+                            <input type="hidden" name="delete_id" value="<?php echo $row['id']; ?>">
+                            <button type="submit" class="text-red-500 hover:text-red-700 text-lg">&times;</button>
+                        </form>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
         <?php if(empty($expenses)): ?>
-            <p class="p-6 text-center text-gray-500">No expenses found for this selection.</p>
+            <p class="p-10 text-center text-gray-400 italic">No transactions found for this selection.</p>
         <?php endif; ?>
     </div>
 </div>
@@ -418,7 +412,7 @@ foreach($expenses as $e) {
             
             <div class="flex justify-end space-x-3 pt-6">
                 <button type="button" onclick="document.getElementById('convertEmiModal').classList.add('hidden')" 
-                        class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 font-medium">Cancel</button>
+                        class="px-4 py-2 text-sm text-gray-600 font-medium">Cancel</button>
                 <button type="submit" class="px-6 py-2 bg-brand-600 text-white rounded-lg text-sm font-bold hover:bg-brand-700 shadow-md transition">
                     Create EMI Plan
                 </button>
@@ -437,7 +431,6 @@ const convertToEmi = document.getElementById('convertToEmi');
 
 function updateEmiVisibility() {
     const method = expMethod.value.toLowerCase();
-    // Show EMI option for all payment methods EXCEPT Cash
     const canConvertToEmi = !method.includes('cash');
     
     if (canConvertToEmi) {
@@ -453,7 +446,6 @@ function updateEmiVisibility() {
         convertToEmi.checked = false;
     }
 
-    // Toggle Target Card if "Credit Card Bill"
     if (expCategory.value === 'Credit Card Bill') {
         targetCardContainer.classList.remove('hidden');
     } else {
@@ -462,7 +454,10 @@ function updateEmiVisibility() {
 }
 
 expCategory.addEventListener('change', updateEmiVisibility);
+expMethod.addEventListener('change', updateEmiVisibility);
+convertToEmi.addEventListener('change', updateEmiVisibility);
 
+// EMI Calculation Logic
 function calculateExpEmi() {
     const p = parseFloat(document.getElementById('expAmount').value) || 0;
     const r_annual = parseFloat(document.getElementById('expInterest').value) || 0;
@@ -472,7 +467,7 @@ function calculateExpEmi() {
         const r = (r_annual / 100) / 12;
         let emi = 0;
         if (r > 0) {
-            emi = (p * r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
+            emi = (p * Math.pow(1 + r, n) * r) / (Math.pow(1 + r, n) - 1);
         } else {
             emi = p / n;
         }
@@ -482,13 +477,11 @@ function calculateExpEmi() {
     }
 }
 
-expMethod.addEventListener('change', updateEmiVisibility);
-convertToEmi.addEventListener('change', updateEmiVisibility);
 ['expAmount', 'expTenure', 'expInterest'].forEach(id => {
     document.getElementById(id).addEventListener('input', calculateExpEmi);
 });
 
-// Initial Visibility
+// Initial Visibility Check
 updateEmiVisibility();
 
 function openEmiModal(expense) {

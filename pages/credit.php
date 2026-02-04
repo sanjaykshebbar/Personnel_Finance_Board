@@ -82,19 +82,23 @@ if (isset($_GET['history_view'])) {
 
     if ($historyCard) {
         $cardName = $historyCard['provider_name'];
-        // Fetch Spend (Payment Method = Card) AND Bill Payments (Description matches Card AND Category NOT Credit Purchase usually, but description is safer)
-        // We look for description LIKE %CardName% to find payments made TO this card (e.g. from Bank)
+        $firstWord = explode(' ', trim($cardName))[0];
+        
+        // Robust History Search
         $txnStmt = $pdo->prepare("
             SELECT * FROM expenses 
             WHERE user_id = ? 
             AND (
                 TRIM(LOWER(payment_method)) = TRIM(LOWER(?)) -- Spent using card
                 OR 
-                (description LIKE ? AND TRIM(LOWER(payment_method)) != TRIM(LOWER(?))) -- Bill Payment TO card (approx heuristic)
+                (
+                    (description LIKE ? OR description LIKE ? OR (category = 'Credit Card Bill' AND description LIKE ?)) 
+                    AND TRIM(LOWER(payment_method)) != TRIM(LOWER(?)) -- Payment TO card
+                )
             )
             ORDER BY date DESC
         ");
-        $txnStmt->execute([$userId, $cardName, "%$cardName%", $cardName]);
+        $txnStmt->execute([$userId, $cardName, "%$cardName%", "%$firstWord%", "%$firstWord%", $cardName]);
         $historyTxns = $txnStmt->fetchAll();
     }
 }
@@ -283,8 +287,6 @@ require_once '../includes/header.php';
                     <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-50 dark:divide-gray-700">
                         <?php foreach ($historyTxns as $txn): 
                             $isBillPayment = (trim(strtolower($txn['payment_method'])) !== trim(strtolower($historyCard['provider_name'])));
-                            // If payment_method == Card, it's a SPEND (Liability Increases).
-                            // If payment_method != Card (e.g. Bank) AND Description matches, it's a PAYMENT (Liability Decreases).
                         ?>
                         <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
                             <td class="px-6 py-4 whitespace-nowrap text-xs text-gray-500 font-medium">
@@ -313,7 +315,7 @@ require_once '../includes/header.php';
         </div>
         
         <div class="p-4 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-center">
-            <span class="text-[10px] text-gray-400 font-bold uppercase">Note: Bill payments are detected if description contains card name.</span>
+            <span class="text-[10px] text-gray-400 font-bold uppercase">Note: Bill payments are detected by matching descriptions or categories.</span>
         </div>
     </div>
 </div>
