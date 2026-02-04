@@ -107,8 +107,8 @@ if (isset($_GET['history_view'])) {
     }
 }
 
-// Fetch Credit Accounts with Advanced Dynamic Usage Calculation
-// Formula: Debt = ManualUsed + OneTimeExpenses - BillPayments + EMI_Outstanding
+// Fetch Credit Accounts with Advanced Usage Calculation BEFORE header
+// FIXED: Added TRIM(LOWER(...)) to ensure case-insensitive matching
 $stmt = $pdo->prepare("
     SELECT ca.*, 
     (SELECT IFNULL(SUM(amount), 0) FROM expenses WHERE TRIM(LOWER(payment_method)) = TRIM(LOWER(ca.provider_name)) AND converted_to_emi = 0 AND user_id = ca.user_id AND date >= '" . SYSTEM_START_DATE . "') as one_time_expenses,
@@ -120,7 +120,7 @@ $stmt = $pdo->prepare("
 $stmt->execute([$userId]);
 $accounts = $stmt->fetchAll();
 
-// NOW load header
+// NOW load header (which outputs HTML)
 $pageTitle = 'Credit Usage';
 require_once '../includes/header.php';
 ?>
@@ -143,8 +143,8 @@ require_once '../includes/header.php';
             </div>
             <div>
                 <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">
-                    Initial Balance Used (₹)
-                    <span class="text-[8px] text-gray-400 normal-case">· Debt before tracking</span>
+                    Manual Base used (₹)
+                    <span class="text-[8px] text-gray-400 normal-case">· Adjust starting debt</span>
                 </label>
                 <input type="number" step="0.01" name="used_amount" 
                        value="<?php echo $editRow['used_amount']??0; ?>" 
@@ -161,7 +161,7 @@ require_once '../includes/header.php';
     <!-- Cards Grid -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <?php foreach ($accounts as $acc): 
-            // Total Used = Initial Base + Charged Expenses - Payments + EMI Outstanding
+            // Total Used = Manual Base + Charged Expenses - Payments + EMI Outstanding
             $currentUsed = $acc['used_amount'] + $acc['one_time_expenses'] - ($acc['bill_payments'] ?? 0) + $acc['emi_outstanding'];
             $limit = $acc['credit_limit'];
             $remaining = $limit - $currentUsed;
@@ -189,10 +189,10 @@ require_once '../includes/header.php';
             </div>
 
             <div class="flex items-center space-x-6 mb-6">
-                <!-- Pie Chart -->
+                <!-- Pie Chart Container -->
                 <div class="w-20 h-20 flex-shrink-0">
                     <canvas id="credit-chart-<?php echo $acc['id']; ?>" class="credit-chart" 
-                            data-used="<?php echo max(0, $currentUsed); ?>" 
+                            data-used="<?php echo $currentUsed; ?>" 
                             data-rem="<?php echo max(0, $remaining); ?>"
                             data-color="<?php echo $chartColor; ?>"></canvas>
                 </div>
@@ -210,7 +210,7 @@ require_once '../includes/header.php';
 
             <div class="grid grid-cols-2 gap-4 pt-4 border-t border-gray-100 dark:border-gray-700">
                 <div>
-                    <div class="text-[10px] font-bold text-gray-400 uppercase text-center mb-1">Net Spent</div>
+                    <div class="text-[10px] font-bold text-gray-400 uppercase text-center mb-1">Spent</div>
                     <div class="text-sm font-bold text-gray-900 dark:text-white text-center">₹<?php echo number_format($currentUsed); ?></div>
                 </div>
                 <div>
@@ -219,9 +219,10 @@ require_once '../includes/header.php';
                 </div>
             </div>
             
+            <!-- Breakdown info -->
             <div class="mt-4 pt-2 flex justify-between text-[8px] font-bold text-gray-300 dark:text-gray-600 uppercase">
                 <span>Initial: ₹<?php echo number_format($acc['used_amount']); ?></span>
-                <span>Expenses: ₹<?php echo number_format($acc['one_time_expenses']); ?></span>
+                <span>Exp: ₹<?php echo number_format($acc['one_time_expenses']); ?></span>
                 <span>Paid: ₹<?php echo number_format($acc['bill_payments']); ?></span>
                 <span>EMI: ₹<?php echo number_format($acc['emi_outstanding']); ?></span>
             </div>
@@ -266,7 +267,7 @@ require_once '../includes/header.php';
 <!-- History Modal -->
 <?php if ($historyCard): ?>
 <div id="historyModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-    <div class="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl h-[80vh] flex flex-col">
+    <div class="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl h-[80vh] flex flex-col transition-colors">
         <div class="p-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
             <div>
                 <h3 class="font-black text-lg text-gray-900 dark:text-white"><?php echo htmlspecialchars($historyCard['provider_name']); ?> History</h3>
@@ -294,7 +295,7 @@ require_once '../includes/header.php';
                         <?php foreach ($historyTxns as $txn): 
                             $isBillPayment = ($txn['category'] === 'Credit Card Bill' || trim(strtolower($txn['target_account'] ?? '')) === trim(strtolower($historyCard['provider_name'])));
                         ?>
-                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                             <td class="px-6 py-4 whitespace-nowrap text-xs text-gray-500 font-medium">
                                 <?php echo date('d M Y', strtotime($txn['date'])); ?>
                             </td>

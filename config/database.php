@@ -53,6 +53,7 @@ function initDb($pdo) {
         description TEXT,
         amount REAL NOT NULL,
         payment_method TEXT NOT NULL,
+        target_account TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )";
@@ -176,6 +177,9 @@ function initDb($pdo) {
         if ($table === 'expenses') {
             if (!in_array('converted_to_emi', $existingCols)) {
                 try { $pdo->exec("ALTER TABLE expenses ADD COLUMN converted_to_emi INTEGER DEFAULT 0"); } catch (Exception $e) {}
+            }
+            if (!in_array('target_account', $existingCols)) {
+                try { $pdo->exec("ALTER TABLE expenses ADD COLUMN target_account TEXT"); } catch (Exception $e) {}
             }
         }
 
