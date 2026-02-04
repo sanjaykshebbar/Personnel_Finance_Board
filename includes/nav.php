@@ -12,7 +12,6 @@ $navItems = [
     ['name' => 'EMI Tracker', 'url' => $prefix . 'pages/emis.php', 'icon' => 'calendar'],
     ['name' => 'Reports', 'url' => $prefix . 'pages/reports.php', 'icon' => 'chart-pie'],
     ['name' => 'Credit', 'url' => $prefix . 'pages/credit.php', 'icon' => 'scale'],
-    ['name' => 'Import', 'url' => $prefix . 'pages/upload.php', 'icon' => 'document-arrow-up'],
     ['name' => 'System Update', 'url' => $prefix . 'pages/update.php', 'icon' => 'arrow-path'],
     ['name' => 'Maintenance', 'url' => $prefix . 'pages/settings.php', 'icon' => 'cog'],
 ];

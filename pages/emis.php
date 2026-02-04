@@ -83,9 +83,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $emi = $amount / $tenure;
         }
+
+        $paidInitial = (int)($_POST['initial_paid_installments'] ?? 0);
         
-        $stmt = $pdo->prepare("INSERT INTO emis (user_id, name, total_amount, interest_rate, tenure_months, emi_amount, start_date, payment_method, expense_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-        $stmt->execute([$userId, $name, $amount, $rate, $tenure, $emi, $start, $method, $expenseId]);
+        $stmt = $pdo->prepare("INSERT INTO emis (user_id, name, total_amount, interest_rate, tenure_months, emi_amount, paid_months, initial_paid_installments, start_date, payment_method, expense_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->execute([$userId, $name, $amount, $rate, $tenure, $emi, $paidInitial, $paidInitial, $start, $method, $expenseId]);
         
         // Mark expense as converted if applicable
         if ($expenseId) {
@@ -305,6 +307,12 @@ function closePayModal() {
                     <label class="block text-xs font-bold text-gray-700 uppercase">Start Date</label>
                     <input type="date" name="start_date" value="<?php echo date('Y-m-d'); ?>" required class="w-full border p-2 rounded">
                 </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-gray-700 uppercase">Installments Already Paid (Before Start)</label>
+                <input type="number" name="initial_paid_installments" value="0" min="0" required class="w-full border p-2 rounded">
+                <p class="text-[10px] text-gray-400 mt-1">These will be added to the total count without creating expense records.</p>
             </div>
             
             <div class="flex justify-end space-x-3 pt-4">

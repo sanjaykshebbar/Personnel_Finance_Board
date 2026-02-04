@@ -97,6 +97,7 @@ function initDb($pdo) {
         provider_name TEXT NOT NULL,
         credit_limit REAL NOT NULL,
         used_amount REAL DEFAULT 0,
+        opening_balance REAL DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )";
@@ -111,6 +112,7 @@ function initDb($pdo) {
         tenure_months INTEGER NOT NULL,
         emi_amount REAL NOT NULL,
         paid_months INTEGER DEFAULT 0,
+        initial_paid_installments INTEGER DEFAULT 0,
         start_date DATE NOT NULL,
         status TEXT CHECK(status IN ('Active', 'Closed', 'Completed')) DEFAULT 'Active',
         expense_id INTEGER, -- The parent expense this EMI was converted from
@@ -229,11 +231,18 @@ function initDb($pdo) {
             if (!in_array('loan_account_no', $existingCols)) {
                 try { $pdo->exec("ALTER TABLE loans ADD COLUMN loan_account_no TEXT"); } catch (Exception $e) {}
             }
-            // type is already in the CREATE TABLE but for existing DBs we might need a more flexible check
-            // However, the original 'type' was CHECK(type IN ('Lent', 'Borrowed')). 
-            // We might need to handle 'Institutional' if we want to change the constraint, 
-            // but SQLite doesn't support changing constraints easily. 
-            // We'll just use 'Borrowed' for Institutional loans and use source_institution to distinguish.
+        }
+
+        if ($table === 'credit_accounts') {
+            if (!in_array('opening_balance', $existingCols)) {
+                try { $pdo->exec("ALTER TABLE credit_accounts ADD COLUMN opening_balance REAL DEFAULT 0"); } catch (Exception $e) {}
+            }
+        }
+
+        if ($table === 'emis') {
+            if (!in_array('initial_paid_installments', $existingCols)) {
+                try { $pdo->exec("ALTER TABLE emis ADD COLUMN initial_paid_installments INTEGER DEFAULT 0"); } catch (Exception $e) {}
+            }
         }
     }
 

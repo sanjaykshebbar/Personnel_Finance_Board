@@ -52,7 +52,7 @@ CREATE TABLE loans (
         person_name TEXT NOT NULL,
         type TEXT CHECK(type IN ('Lent', 'Borrowed')) NOT NULL,
         amount REAL NOT NULL,
-        paid_amount REAL DEFAULT 0, -- FIXED: Added missing column
+        paid_amount REAL DEFAULT 0,
         status TEXT CHECK(status IN ('Pending', 'Settled')) DEFAULT 'Pending',
         date DATE NOT NULL,
         settlement_date DATE,
@@ -66,6 +66,7 @@ CREATE TABLE credit_accounts (
         provider_name TEXT NOT NULL,
         credit_limit REAL NOT NULL,
         used_amount REAL DEFAULT 0,
+        opening_balance REAL DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
@@ -79,6 +80,7 @@ CREATE TABLE emis (
         tenure_months INTEGER NOT NULL,
         emi_amount REAL NOT NULL,
         paid_months INTEGER DEFAULT 0,
+        initial_paid_installments INTEGER DEFAULT 0,
         start_date DATE NOT NULL,
         status TEXT CHECK(status IN ('Active', 'Closed', 'Completed')) DEFAULT 'Active',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP, payment_method TEXT, expense_id INTEGER,
@@ -108,4 +110,3 @@ CREATE TABLE investment_plans (
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
-

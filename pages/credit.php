@@ -56,11 +56,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $type = $_POST['type'] ?? 'Expense'; // 'Expense', 'Payment', 'Adjustment'
         $date = date('Y-m-d');
         
-        if ($type === 'Adjustment') {
-            // Adjust the manual base used_amount directly
-            $stmt = $pdo->prepare("UPDATE credit_accounts SET used_amount = used_amount + ? WHERE provider_name = ? AND user_id = ?");
+        if ($type === 'Adjustment' || $type === 'OpeningBalance') {
+            // Adjust the manual opening_balance directly
+            $stmt = $pdo->prepare("UPDATE credit_accounts SET opening_balance = opening_balance + ? WHERE provider_name = ? AND user_id = ?");
             $stmt->execute([$amount, $cardName, $userId]);
-            $_SESSION['flash_message'] = "Credit limit adjusted by ₹$amount for $cardName.";
+            $_SESSION['flash_message'] = "Opening balance adjusted by ₹$amount for $cardName.";
         } elseif ($type === 'Payment') {
             $stmt = $pdo->prepare("INSERT INTO expenses (user_id, date, category, description, amount, payment_method, target_account) VALUES (?, ?, 'Credit Card Bill', ?, ?, 'Bank Account', ?)");
             $stmt->execute([$userId, $date, $desc, $amount, $cardName]);
@@ -73,13 +73,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (isset($_POST['auto_settle'])) {
         $cardId = $_POST['card_id'];
         $balance = $_POST['balance']; // The negative balance to absorb
-        $stmt = $pdo->prepare("UPDATE credit_accounts SET used_amount = used_amount + ? WHERE id = ? AND user_id = ?");
+        $stmt = $pdo->prepare("UPDATE credit_accounts SET opening_balance = opening_balance + ? WHERE id = ? AND user_id = ?");
         $stmt->execute([$balance, $cardId, $userId]);
-        $_SESSION['flash_message'] = "Balance settled. Absorbed " . number_format($balance, 2) . " into base.";
+        $_SESSION['flash_message'] = "Balance settled. Absorbed " . number_format($balance, 2) . " into opening balance.";
     } else {
         $provider = $_POST['provider_name'];
         $limit = $_POST['credit_limit'];
-        $manual_used = $_POST['used_amount'] ?? 0;
+        $opening_balance = $_POST['opening_balance'] ?? 0;
         
         if (!empty($_POST['id'])) {
             // Fetch old provider name for sync
@@ -88,10 +88,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $oldProvider = $oldStmt->fetchColumn();
 
             // UPDATE existing account
-            $stmt = $pdo->prepare("UPDATE credit_accounts SET provider_name=?, credit_limit=?, used_amount=? WHERE id=? AND user_id = ?");
+            $stmt = $pdo->prepare("UPDATE credit_accounts SET provider_name=?, credit_limit=?, opening_balance=? WHERE id=? AND user_id = ?");
             try {
                 $pdo->beginTransaction();
-                $stmt->execute([$provider, $limit, $manual_used, $_POST['id'], $userId]);
+                $stmt->execute([$provider, $limit, $opening_balance, $_POST['id'], $userId]);
                 
                 // SYNC: Update expenses and EMIs if provider name changed
                 if ($oldProvider && $oldProvider !== $provider) {
@@ -108,9 +108,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         } else {
             // INSERT new account
-            $stmt = $pdo->prepare("INSERT INTO credit_accounts (user_id, provider_name, credit_limit, used_amount) VALUES (?, ?, ?, ?)");
+            $stmt = $pdo->prepare("INSERT INTO credit_accounts (user_id, provider_name, credit_limit, opening_balance) VALUES (?, ?, ?, ?)");
             try { 
-                $stmt->execute([$userId, $provider, $limit, $manual_used]); 
+                $stmt->execute([$userId, $provider, $limit, $opening_balance]); 
                 $_SESSION['flash_message'] = "Credit account added!";
             } catch(Exception $e) { 
                 $_SESSION['flash_message'] = "Error adding account: " . $e->getMessage(); 
@@ -212,11 +212,11 @@ require_once '../includes/header.php';
             </div>
             <div>
                 <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">
-                    Manual Base used (₹)
-                    <span class="text-[8px] text-gray-400 normal-case">· Adjust starting debt</span>
+                    Opening Balance (₹)
+                    <span class="text-[8px] text-gray-400 normal-case">· Real outstanding at start</span>
                 </label>
-                <input type="number" step="0.01" name="used_amount" 
-                       value="<?php echo $editRow['used_amount']??0; ?>" 
+                <input type="number" step="0.01" name="opening_balance" 
+                       value="<?php echo $editRow['opening_balance']??0; ?>" 
                        class="w-full border-gray-200 dark:border-gray-600 dark:bg-gray-900 dark:text-white p-2 rounded text-sm focus:ring-brand-500">
             </div>
             <div>
@@ -230,16 +230,18 @@ require_once '../includes/header.php';
     <!-- Cards Grid -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <?php foreach ($accounts as $acc): 
-            // FIXED: Separation of Balance and Total Debt for clarity
-            // 1. Card Balance = Previous Manual Base + New Expenses - Bill Payments
-            $cardBalance = $acc['used_amount'] + $acc['one_time_expenses'] - ($acc['bill_payments'] ?? 0);
+            // 1. Card Balance = Opening Balance + New Expenses - Bill Payments
+            $cardBalanceRaw = $acc['opening_balance'] + $acc['one_time_expenses'] - ($acc['bill_payments'] ?? 0);
+            $cardBalance = max(0, $cardBalanceRaw);
             
             // 2. Total Utilized/Liability = Card Balance + Future EMI Principal
-            $totalLiability = $cardBalance + $acc['emi_outstanding'];
+            $totalLiabilityRaw = $cardBalance + $acc['emi_outstanding'];
+            $totalLiability = max(0, $totalLiabilityRaw);
             
             $limit = $acc['credit_limit'];
             $remaining = $limit - $totalLiability;
             $percent = ($limit > 0) ? ($totalLiability / $limit) * 100 : 0;
+            $percent = max(0, $percent);
             
             // UI Color Logic
             $statusColor = $percent > 85 ? 'text-red-600 dark:text-red-400' : ($percent > 60 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400');
@@ -291,8 +293,8 @@ require_once '../includes/header.php';
                         <form method="POST" class="mt-2 text-center">
                             <input type="hidden" name="auto_settle" value="1">
                             <input type="hidden" name="card_id" value="<?php echo $acc['id']; ?>">
-                            <input type="hidden" name="balance" value="<?php echo $cardBalance; ?>">
-                            <button type="submit" class="text-[8px] font-black text-brand-600 hover:text-brand-700 underline uppercase tracking-tighter" title="Absorb this negative balance into the card's Initial Base (used amount).">Settle & Zero Out</button>
+                            <input type="hidden" name="balance" value="<?php echo $cardBalanceRaw; ?>">
+                            <button type="submit" class="text-[8px] font-black text-brand-600 hover:text-brand-700 underline uppercase tracking-tighter" title="Absorb this negative balance into the card's Opening Balance.">Settle & Zero Out</button>
                         </form>
                     <?php endif; ?>
                 </div>
@@ -305,7 +307,7 @@ require_once '../includes/header.php';
             
             <!-- Breakdown info -->
             <div class="mt-4 pt-2 flex justify-between text-[8px] font-bold text-gray-300 dark:text-gray-600 uppercase">
-                <span>Initial: ₹<?php echo number_format($acc['used_amount']); ?></span>
+                <span>Start: ₹<?php echo number_format($acc['opening_balance']); ?></span>
                 <span>Exp: ₹<?php echo number_format($acc['one_time_expenses']); ?></span>
                 <span>Paid: ₹<?php echo number_format($acc['bill_payments']); ?></span>
                 <span>EMI: ₹<?php echo number_format($acc['emi_outstanding']); ?></span>
@@ -472,7 +474,7 @@ function setQuickLogType(type) {
         submitBtn.className = submitBtn.className.replace('bg-brand-600', 'bg-amber-600').replace('bg-emerald-600', 'bg-amber-600');
         descInput.value = "Tally Adjustment / Opening Balance";
         note.classList.remove('hidden');
-        note.innerText = "Adjustment updates the card's base limit usage without affecting your dashboard expenses.";
+        note.innerText = "Adjustment updates the card's real opening balance without affecting your dashboard expenses.";
     } else if (type === 'Payment') {
         btnPay.className = "flex-1 py-2 text-[10px] font-bold uppercase rounded-lg transition-all bg-white dark:bg-emerald-600 text-emerald-600 dark:text-white shadow-sm";
         btnExp.className = "flex-1 py-2 text-[10px] font-bold uppercase rounded-lg transition-all text-gray-500 hover:text-gray-700";
