@@ -111,10 +111,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         }
                         $ins = $pdo->prepare("INSERT INTO expenses (user_id, date, category, description, amount, payment_method, linked_type, linked_id) VALUES (?, ?, 'EMI/Bills', ?, ?, ?, 'LOAN', ?)");
                         $ins->execute([$userId, $payDate, $desc, $amt, $method, $id]);
+                        $newExpId = $pdo->lastInsertId();
 
                         $invDesc = "Debt Reduction: " . ($loan['person_name'] ?? 'Loan');
-                        $invStmt = $pdo->prepare("INSERT INTO investments (user_id, investment_name, frequency, amount, status, due_date) VALUES (?, ?, 'Monthly', ?, 'Paid', ?)");
-                        $invStmt->execute([$userId, $invDesc, $amt, $payDate]);
+                        $invStmt = $pdo->prepare("INSERT INTO investments (user_id, investment_name, frequency, amount, status, due_date, expense_id) VALUES (?, ?, 'Monthly', ?, 'Paid', ?, ?)");
+                        $invStmt->execute([$userId, $invDesc, $amt, $payDate, $newExpId]);
                     } else {
                         // Receiving Lent money = Other Income
                         $incStmt = $pdo->prepare("SELECT id, other_income, total_income FROM income WHERE month = ? AND user_id = ?");

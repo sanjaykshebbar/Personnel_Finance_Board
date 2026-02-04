@@ -61,6 +61,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $pdo->prepare("UPDATE loans SET paid_amount = MAX(0, paid_amount - ?), status = 'Pending' WHERE id = ? AND user_id = ?")->execute([$exp['amount'], $exp['linked_id'], $userId]);
                     }
                 }
+
+                // CASE 3: Handle Investment Rollbacks
+                // Check if there's an investment record linked to this expense
+                $invStmt = $pdo->prepare("SELECT * FROM investments WHERE expense_id = ? AND user_id = ?");
+                $invStmt->execute([$expenseId, $userId]);
+                $inv = $invStmt->fetch();
+                
+                if ($inv) {
+                    // If it was linked to a plan, rollback the plan count
+                    if (!empty($inv['plan_id'])) {
+                        $pdo->prepare("UPDATE investment_plans SET paid_count = MAX(0, paid_count - 1) WHERE id = ? AND user_id = ?")
+                            ->execute([$inv['plan_id'], $userId]);
+                    }
+                    // Delete the investment history record
+                    $pdo->prepare("DELETE FROM investments WHERE id = ?")->execute([$inv['id']]);
+                }
                 
                 // Delete the actual expense
                 $pdo->prepare("DELETE FROM expenses WHERE id = ?")->execute([$expenseId]);
