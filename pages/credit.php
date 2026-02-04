@@ -86,8 +86,14 @@ if (isset($_GET['history_view'])) {
         $firstWord = explode(' ', trim($cardName))[0];
         
         // EXPLICIT History Search (Using target_account and payment_method)
+        // Broadened to include unlinked 'Credit Card Bill' entries as a fallback
         $txnStmt = $pdo->prepare("
-            SELECT * FROM expenses 
+            SELECT *, 
+            CASE 
+                WHEN category = 'Credit Card Bill' AND (target_account IS NULL OR target_account = '') AND (description NOT LIKE ? AND description NOT LIKE ?) THEN 1
+                ELSE 0
+            END as is_unlinked_fallback
+            FROM expenses 
             WHERE user_id = ? 
             AND (
                 TRIM(LOWER(payment_method)) = TRIM(LOWER(?)) -- Spent using card
@@ -96,13 +102,12 @@ if (isset($_GET['history_view'])) {
                 OR
                 (
                     category = 'Credit Card Bill' 
-                    AND (description LIKE ? OR description LIKE ?)
-                    AND (target_account IS NULL OR target_account = '')
+                    AND (description LIKE ? OR description LIKE ? OR (target_account IS NULL OR target_account = ''))
                 )
             )
             ORDER BY date DESC
         ");
-        $txnStmt->execute([$userId, $cardName, $cardName, "%$cardName%", "%$firstWord%"]);
+        $txnStmt->execute(["%$cardName%", "%$firstWord%", $userId, $cardName, $cardName, "%$cardName%", "%$firstWord%"]);
         $historyTxns = $txnStmt->fetchAll();
     }
 }
@@ -300,7 +305,12 @@ require_once '../includes/header.php';
                                 <?php echo date('d M Y', strtotime($txn['date'])); ?>
                             </td>
                             <td class="px-6 py-4 text-sm text-gray-900 dark:text-white">
-                                <div class="font-bold"><?php echo htmlspecialchars($txn['description']); ?></div>
+                                <div class="font-bold">
+                                    <?php echo htmlspecialchars($txn['description']); ?>
+                                    <?php if(!empty($txn['is_unlinked_fallback'])): ?>
+                                        <span class="ml-2 px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 text-[8px] font-black uppercase rounded border border-amber-200 dark:border-amber-800" title="This bill payment is not explicitly linked to this card but is being shown as a fallback.">Unlinked</span>
+                                    <?php endif; ?>
+                                </div>
                                 <div class="text-[10px] text-gray-400"><?php echo htmlspecialchars($txn['category']); ?></div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-right">

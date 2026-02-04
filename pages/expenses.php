@@ -48,11 +48,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $desc = $_POST['description'];
             $amount = $_POST['amount'];
             $method = $_POST['payment_method'];
-            $targetAccount = ($category === 'Credit Card Bill') ? ($_POST['target_card_name'] ?? null) : null;
-            
-            // Check for valid amount
+            // Validation
             if ($amount <= 0) {
                 throw new Exception("Amount must be greater than zero.");
+            }
+            if ($category === 'Credit Card Bill' && empty($_POST['target_card_name'])) {
+                throw new Exception("Please select the Target Card being paid.");
             }
 
             // Check if linking target is valid (if selected)
@@ -215,8 +216,8 @@ foreach($expenses as $e) {
                 </select>
             </div>
             <div class="col-span-1 hidden" id="targetCardContainer">
-                <label class="text-xs font-bold text-gray-700">Target Card</label>
-                <select name="target_card_name" class="w-full border p-2 rounded text-sm bg-brand-50 border-brand-200">
+                <label class="text-xs font-bold text-gray-700">Target Card <span class="text-red-500">*</span></label>
+                <select name="target_card_name" id="target_card_name" class="w-full border p-2 rounded text-sm bg-brand-50 border-brand-200">
                     <option value="">-- Select Card --</option>
                     <?php foreach($allCards as $c) echo "<option value=\"$c\">$c</option>"; ?>
                 </select>
@@ -442,8 +443,10 @@ function updateEmiVisibility() {
 
     if (expCategory.value === 'Credit Card Bill') {
         targetCardContainer.classList.remove('hidden');
+        document.getElementById('target_card_name').required = true;
     } else {
         targetCardContainer.classList.add('hidden');
+        document.getElementById('target_card_name').required = false;
     }
 }
 
