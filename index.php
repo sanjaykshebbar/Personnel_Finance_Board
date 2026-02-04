@@ -14,7 +14,7 @@ $startMonth = substr(SYSTEM_START_DATE, 0, 7); // "2026-02"
 
 // 1. Total Income (Current Month)
 // Fixed: Income is now attributed based on 'month' (User selected Budget Month)
-$stmt = $pdo->prepare("SELECT SUM(total_income) as total FROM income WHERE month = ? AND user_id = ? AND accounting_date >= '" . SYSTEM_START_DATE . "'");
+$stmt = $pdo->prepare("SELECT SUM(total_income) as total FROM income WHERE month = ? AND user_id = ?");
 $stmt->execute([$currentMonth, $userId]);
 $incomeCurrent = $stmt->fetch()['total'] ?? 0;
 
@@ -23,13 +23,13 @@ $incomeCurrent = $stmt->fetch()['total'] ?? 0;
 // OR we sum everything in expenses and don't sum investments separately. 
 // Let's sum EVERYTHING in expenses and then show specific cards.
 // FIXED: Exclude expenses that are 'converted_to_emi' (1) to avoid double counting (Initial + EMI installments)
-$stmt = $pdo->prepare("SELECT SUM(amount) as total FROM expenses WHERE strftime('%Y-%m', date) = ? AND date >= '" . SYSTEM_START_DATE . "' AND user_id = ? AND converted_to_emi = 0");
+$stmt = $pdo->prepare("SELECT SUM(amount) as total FROM expenses WHERE strftime('%Y-%m', date) = ? AND user_id = ? AND converted_to_emi = 0");
 $stmt->execute([$currentMonth, $userId]);
 $expensesCurrent = $stmt->fetch()['total'] ?? 0;
 
 // 3. Total Investments (Current Month)
 // To avoid double counting in Balance calculation, we keep this for the card view ONLY.
-$stmt = $pdo->prepare("SELECT SUM(amount) as total FROM investments WHERE strftime('%Y-%m', due_date) = ? AND due_date >= '" . SYSTEM_START_DATE . "' AND user_id = ?");
+$stmt = $pdo->prepare("SELECT SUM(amount) as total FROM investments WHERE strftime('%Y-%m', due_date) = ? AND user_id = ?");
 $stmt->execute([$currentMonth, $userId]);
 $investmentsCurrent = $stmt->fetch()['total'] ?? 0;
 
@@ -37,7 +37,7 @@ $investmentsCurrent = $stmt->fetch()['total'] ?? 0;
 if ($currentMonth <= $startMonth) {
     $carryForward = 0;
 } else {
-    $stmt = $pdo->prepare("SELECT SUM(total_income) FROM income WHERE month < ? AND accounting_date >= '" . SYSTEM_START_DATE . "' AND user_id = ?");
+    $stmt = $pdo->prepare("SELECT SUM(total_income) FROM income WHERE month < ? AND user_id = ?");
     $stmt->execute([$currentMonth, $userId]);
     $pastIncome = $stmt->fetchColumn() ?? 0;
 
@@ -47,7 +47,6 @@ if ($currentMonth <= $startMonth) {
         SELECT SUM(amount) 
         FROM expenses 
         WHERE strftime('%Y-%m', date) < ? 
-        AND date >= '" . SYSTEM_START_DATE . "' 
         AND user_id = ? 
         AND converted_to_emi = 0
         AND TRIM(LOWER(payment_method)) NOT IN (SELECT TRIM(LOWER(provider_name)) FROM credit_accounts WHERE user_id = ?)
@@ -62,18 +61,19 @@ if ($currentMonth <= $startMonth) {
 $totalAvailable = $incomeCurrent + $carryForward;
 
 // 6. Current Month EMIs - KEEPING for Display/Analytics if needed, but NOT for Balance Calculation
-$stmt = $pdo->prepare("SELECT SUM(emi_amount) FROM emis WHERE status = 'Active' AND user_id = ? AND start_date <= ? AND start_date >= '" . SYSTEM_START_DATE . "'");
+$stmt = $pdo->prepare("SELECT SUM(emi_amount) FROM emis WHERE status = 'Active' AND user_id = ? AND start_date <= ?");
 $stmt->execute([$userId, $currentMonth . "-31"]);
 $emisCurrent = $stmt->fetchColumn() ?? 0;
 
 // 7. Remaining Savings (This Month)
-// Fixed: Balance = Total Available - Asset Expenses (Expenses paid via Bank/Cash)
-// We calculate Asset Expenses separately ensuring we exclude Credit Card spending.
+// User Request: Remaining Balance = Generated Income + Carry Forward
+$remainingSavings = $incomeCurrent + $carryForward;
+
+// Asset Expenses calculation for charts/analytics
 $stmt = $pdo->prepare("
     SELECT SUM(amount) as total 
     FROM expenses 
     WHERE strftime('%Y-%m', date) = ? 
-    AND date >= '" . SYSTEM_START_DATE . "' 
     AND user_id = ? 
     AND converted_to_emi = 0
     AND TRIM(LOWER(payment_method)) NOT IN (SELECT TRIM(LOWER(provider_name)) FROM credit_accounts WHERE user_id = ?)
@@ -87,7 +87,7 @@ $remainingSavings = $totalAvailable - $assetExpensesCurrent;
 $catStmt = $pdo->prepare("
     SELECT category, SUM(amount) as total 
     FROM expenses 
-    WHERE strftime('%Y-%m', date) = ? AND date >= '" . SYSTEM_START_DATE . "' AND user_id = ? AND converted_to_emi = 0
+    WHERE strftime('%Y-%m', date) = ? AND user_id = ? AND converted_to_emi = 0
     GROUP BY category 
     ORDER BY total DESC
 ");
@@ -106,7 +106,7 @@ foreach($categorySpending as $c) {
 // Formula: Debt = InitialBase + Expenses - Payments + EMI_Outstanding
 $creditStmt = $pdo->prepare("
     SELECT ca.*, 
-    (SELECT IFNULL(SUM(amount), 0) FROM expenses WHERE TRIM(LOWER(payment_method)) = TRIM(LOWER(ca.provider_name)) AND converted_to_emi = 0 AND user_id = ca.user_id AND date >= '" . SYSTEM_START_DATE . "') as one_time_expenses,
+    (SELECT IFNULL(SUM(amount), 0) FROM expenses WHERE TRIM(LOWER(payment_method)) = TRIM(LOWER(ca.provider_name)) AND converted_to_emi = 0 AND user_id = ca.user_id) as one_time_expenses,
     (SELECT IFNULL(SUM(amount), 0) FROM expenses WHERE category = 'Credit Card Bill' AND TRIM(LOWER(target_account)) = TRIM(LOWER(ca.provider_name)) AND user_id = ca.user_id) as bill_payments,
     (SELECT IFNULL(SUM(total_amount - (emi_amount * paid_months)), 0) FROM emis WHERE TRIM(LOWER(payment_method)) = TRIM(LOWER(ca.provider_name)) AND user_id = ca.user_id AND status = 'Active') as emi_outstanding
     FROM credit_accounts ca 
