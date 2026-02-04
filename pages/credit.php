@@ -49,14 +49,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute([$cardName, $expenseId, $userId]);
         $_SESSION['flash_message'] = "Transaction linked to $cardName!";
     } elseif (isset($_POST['quick_log'])) {
-        // Quick Transaction / Payment Logic
+        // Quick Transaction / Payment / Adjustment Logic
         $cardName = $_POST['card_name'];
         $amount = $_POST['amount'];
         $desc = $_POST['description'];
-        $type = $_POST['type'] ?? 'Expense'; // 'Expense' or 'Payment'
+        $type = $_POST['type'] ?? 'Expense'; // 'Expense', 'Payment', 'Adjustment'
         $date = date('Y-m-d');
         
-        if ($type === 'Payment') {
+        if ($type === 'Adjustment') {
+            // Adjust the manual base used_amount directly
+            $stmt = $pdo->prepare("UPDATE credit_accounts SET used_amount = used_amount + ? WHERE provider_name = ? AND user_id = ?");
+            $stmt->execute([$amount, $cardName, $userId]);
+            $_SESSION['flash_message'] = "Credit limit adjusted by ₹$amount for $cardName.";
+        } elseif ($type === 'Payment') {
             $stmt = $pdo->prepare("INSERT INTO expenses (user_id, date, category, description, amount, payment_method, target_account) VALUES (?, ?, 'Credit Card Bill', ?, ?, 'Bank Account', ?)");
             $stmt->execute([$userId, $date, $desc, $amount, $cardName]);
             $_SESSION['flash_message'] = "Bill payment of ₹$amount logged to $cardName.";
@@ -65,6 +70,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([$userId, $date, $desc, $amount, $cardName]);
             $_SESSION['flash_message'] = "Expense of ₹$amount logged to $cardName.";
         }
+    } elseif (isset($_POST['auto_settle'])) {
+        $cardId = $_POST['card_id'];
+        $balance = $_POST['balance']; // The negative balance to absorb
+        $stmt = $pdo->prepare("UPDATE credit_accounts SET used_amount = used_amount + ? WHERE id = ? AND user_id = ?");
+        $stmt->execute([$balance, $cardId, $userId]);
+        $_SESSION['flash_message'] = "Balance settled. Absorbed " . number_format($balance, 2) . " into base.";
     } else {
         $provider = $_POST['provider_name'];
         $limit = $_POST['credit_limit'];
@@ -267,6 +278,14 @@ require_once '../includes/header.php';
                     <div class="text-[10px] font-bold text-gray-400 uppercase text-center mb-1">Card Balance</div>
                     <div class="text-sm font-bold text-gray-900 dark:text-white text-center">₹<?php echo number_format($cardBalance, 2); ?></div>
                     <p class="text-[8px] text-gray-400 text-center leading-tight">Exp - Paid</p>
+                    <?php if($cardBalance < 0): ?>
+                        <form method="POST" class="mt-2 text-center">
+                            <input type="hidden" name="auto_settle" value="1">
+                            <input type="hidden" name="card_id" value="<?php echo $acc['id']; ?>">
+                            <input type="hidden" name="balance" value="<?php echo $cardBalance; ?>">
+                            <button type="submit" class="text-[8px] font-black text-brand-600 hover:text-brand-700 underline uppercase tracking-tighter" title="Absorb this negative balance into the card's Initial Base (used amount).">Settle & Zero Out</button>
+                        </form>
+                    <?php endif; ?>
                 </div>
                 <div>
                     <div class="text-[10px] font-bold text-gray-400 uppercase text-center mb-1">Total Utilized</div>
@@ -301,14 +320,18 @@ require_once '../includes/header.php';
             <input type="hidden" name="quick_log" value="1">
             <input type="hidden" name="card_name" id="modalCardName">
             
-            <div class="flex p-1 bg-gray-100 dark:bg-gray-900 rounded-xl">
+            <div class="flex p-1 bg-gray-100 dark:bg-gray-900 rounded-xl space-x-1">
                 <button type="button" onclick="setQuickLogType('Expense')" id="btnTypeExpense" 
-                        class="flex-1 py-2 text-[10px] font-bold uppercase rounded-lg transition-all bg-white dark:bg-brand-600 text-brand-600 dark:text-white shadow-sm">
+                        class="flex-1 py-1 text-[10px] font-bold uppercase rounded-lg transition-all bg-white dark:bg-brand-600 text-brand-600 dark:text-white shadow-sm">
                     Expense
                 </button>
                 <button type="button" onclick="setQuickLogType('Payment')" id="btnTypePayment" 
-                        class="flex-1 py-2 text-[10px] font-bold uppercase rounded-lg transition-all text-gray-500 hover:text-gray-700">
-                    Bill Payment
+                        class="flex-1 py-1 text-[10px] font-bold uppercase rounded-lg transition-all text-gray-500 hover:text-gray-700">
+                    Payment
+                </button>
+                <button type="button" onclick="setQuickLogType('Adjustment')" id="btnTypeAdjustment" 
+                        class="flex-1 py-1 text-[10px] font-bold uppercase rounded-lg transition-all text-gray-500 hover:text-gray-700" title="Add to Opening Balance / Manual Base">
+                    Adj
                 </button>
                 <input type="hidden" name="type" id="modalLogType" value="Expense">
             </div>
@@ -320,9 +343,10 @@ require_once '../includes/header.php';
             </div>
             
             <div>
-                <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Description</label>
-                <input type="text" name="description" id="modalDesc" placeholder="Starbucks, Gas, etc." required
+                <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Description / Memo</label>
+                <input type="text" name="description" id="modalDesc" placeholder="Lunch, Fuel, Amazon..."
                        class="w-full border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 dark:text-white p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500">
+                <div id="modalNote" class="mt-2 p-2 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 text-[9px] font-bold rounded-lg border border-amber-200 dark:border-amber-800 hidden"></div>
             </div>
 
             <button type="submit" id="modalSubmitBtn" class="w-full bg-gray-900 dark:bg-brand-600 text-white py-4 rounded-xl font-black text-sm hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl shadow-gray-900/10">
@@ -421,23 +445,38 @@ function openQuickLog(card) {
 function setQuickLogType(type) {
     const btnExp = document.getElementById('btnTypeExpense');
     const btnPay = document.getElementById('btnTypePayment');
+    const btnAdj = document.getElementById('btnTypeAdjustment');
     const input = document.getElementById('modalLogType');
     const submitBtn = document.getElementById('modalSubmitBtn');
     const descInput = document.getElementById('modalDesc');
     const cardName = document.getElementById('modalCardName').value;
+    const note = document.getElementById('modalNote');
 
     input.value = type;
-    if (type === 'Payment') {
+    note.classList.add('hidden');
+
+    if (type === 'Adjustment') {
+        btnAdj.className = "flex-1 py-2 text-[10px] font-bold uppercase rounded-lg transition-all bg-white dark:bg-amber-600 text-amber-600 dark:text-white shadow-sm";
+        btnExp.className = "flex-1 py-2 text-[10px] font-bold uppercase rounded-lg transition-all text-gray-500 hover:text-gray-700";
+        btnPay.className = "flex-1 py-2 text-[10px] font-bold uppercase rounded-lg transition-all text-gray-500 hover:text-gray-700";
+        submitBtn.innerText = "Apply Adjustment →";
+        submitBtn.className = submitBtn.className.replace('bg-brand-600', 'bg-amber-600').replace('bg-emerald-600', 'bg-amber-600');
+        descInput.value = "Tally Adjustment / Opening Balance";
+        note.classList.remove('hidden');
+        note.innerText = "Adjustment updates the card's base limit usage without affecting your dashboard expenses.";
+    } else if (type === 'Payment') {
         btnPay.className = "flex-1 py-2 text-[10px] font-bold uppercase rounded-lg transition-all bg-white dark:bg-emerald-600 text-emerald-600 dark:text-white shadow-sm";
         btnExp.className = "flex-1 py-2 text-[10px] font-bold uppercase rounded-lg transition-all text-gray-500 hover:text-gray-700";
+        btnAdj.className = "flex-1 py-2 text-[10px] font-bold uppercase rounded-lg transition-all text-gray-500 hover:text-gray-700";
         submitBtn.innerText = "Log Payment →";
-        submitBtn.className = submitBtn.className.replace('bg-gray-900', 'bg-emerald-600').replace('bg-brand-600', 'bg-emerald-600');
+        submitBtn.className = submitBtn.className.replace('bg-brand-600', 'bg-emerald-600').replace('bg-amber-600', 'bg-emerald-600');
         descInput.value = "Bill Payment: " + cardName;
     } else {
         btnExp.className = "flex-1 py-2 text-[10px] font-bold uppercase rounded-lg transition-all bg-white dark:bg-brand-600 text-brand-600 dark:text-white shadow-sm";
         btnPay.className = "flex-1 py-2 text-[10px] font-bold uppercase rounded-lg transition-all text-gray-500 hover:text-gray-700";
+        btnAdj.className = "flex-1 py-2 text-[10px] font-bold uppercase rounded-lg transition-all text-gray-500 hover:text-gray-700";
         submitBtn.innerText = "Log Purchase →";
-        submitBtn.className = submitBtn.className.replace('bg-emerald-600', 'bg-gray-900').replace('bg-emerald-600', 'bg-brand-600');
+        submitBtn.className = submitBtn.className.replace('bg-emerald-600', 'bg-brand-600').replace('bg-amber-600', 'bg-brand-600');
         descInput.value = "";
     }
 }

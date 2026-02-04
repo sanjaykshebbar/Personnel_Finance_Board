@@ -87,7 +87,10 @@ $remainingSavings = $totalAvailable - $assetExpensesCurrent;
 $catStmt = $pdo->prepare("
     SELECT category, SUM(amount) as total 
     FROM expenses 
-    WHERE strftime('%Y-%m', date) = ? AND user_id = ? AND converted_to_emi = 0
+    WHERE strftime('%Y-%m', date) = ? 
+    AND user_id = ? 
+    AND converted_to_emi = 0
+    AND category != 'Credit Card Bill'
     GROUP BY category 
     ORDER BY total DESC
 ");
@@ -136,10 +139,12 @@ $creditUtilization = ($totalCreditLimit > 0) ? round(($totalCreditUsed / $totalC
 
 // Dashboard Summary Data
 $summaryIncome = $incomeCurrent;
-// FIXED: Financial Summary Chart should reflect 'Cash Flow' (Bank Position).
-// So we use Asset Expenses (Bank/Cash) here, not Total Expenses (which includes Liabilities).
-// This ensures 'Savings' in the chart aligns with the 'Remaining Balance' logic (Cash in Hand).
-$summaryExpense = $assetExpensesCurrent; 
+// Total Expenses for Insight (includes CC spends, excludes CC bill payments to avoid double counting)
+$stmt = $pdo->prepare("SELECT SUM(amount) FROM expenses WHERE strftime('%Y-%m', date) = ? AND user_id = ? AND category != 'Credit Card Bill'");
+$stmt->execute([$currentMonth, $userId]);
+$totalInsightExpenses = $stmt->fetchColumn() ?? 0;
+
+$summaryExpense = $totalInsightExpenses + $emisCurrent;
 $summarySavings = max(0, $summaryIncome - $summaryExpense);
 
 // 8. Loan Analytics
