@@ -48,6 +48,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $desc = $_POST['description'];
             $amount = $_POST['amount'];
             $method = $_POST['payment_method'];
+            $targetAccount = ($category === 'Credit Card Bill') ? ($_POST['target_card_name'] ?? null) : null;
+            
             // Validation
             if ($amount <= 0) {
                 throw new Exception("Amount must be greater than zero.");

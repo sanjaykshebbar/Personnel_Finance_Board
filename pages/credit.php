@@ -11,6 +11,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt = $pdo->prepare("DELETE FROM credit_accounts WHERE id = ? AND user_id = ?");
         $stmt->execute([$_POST['delete_id'], $userId]);
         $_SESSION['flash_message'] = "Credit account deleted.";
+    } elseif (isset($_POST['link_orphan'])) {
+        // Link an unlinked expense to a card
+        $expenseId = $_POST['expense_id'];
+        $cardName = $_POST['card_name'];
+        $stmt = $pdo->prepare("UPDATE expenses SET target_account = ? WHERE id = ? AND user_id = ?");
+        $stmt->execute([$cardName, $expenseId, $userId]);
+        $_SESSION['flash_message'] = "Transaction linked to $cardName!";
     } elseif (isset($_POST['quick_log'])) {
         // Quick Transaction Logic
         $cardName = $_POST['card_name'];
@@ -49,7 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['flash_message'] = "Account details updated & synced.";
             } catch(Exception $e) { 
                 $pdo->rollBack();
-                $_SESSION['flash_message'] = "Error updating account."; 
+                $_SESSION['flash_message'] = "Error updating account: " . $e->getMessage(); 
             }
         } else {
             // INSERT new account
@@ -58,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute([$userId, $provider, $limit, $manual_used]); 
                 $_SESSION['flash_message'] = "Credit account added!";
             } catch(Exception $e) { 
-                $_SESSION['flash_message'] = "Error adding account."; 
+                $_SESSION['flash_message'] = "Error adding account: " . $e->getMessage(); 
             }
         }
     }
