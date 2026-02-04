@@ -309,6 +309,13 @@ require_once '../includes/header.php';
                                     <?php echo htmlspecialchars($txn['description']); ?>
                                     <?php if(!empty($txn['is_unlinked_fallback'])): ?>
                                         <span class="ml-2 px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 text-[8px] font-black uppercase rounded border border-amber-200 dark:border-amber-800" title="This bill payment is not explicitly linked to this card but is being shown as a fallback.">Unlinked</span>
+                                        <form method="POST" class="inline ml-1" onsubmit="return confirm('Link this payment to <?php echo htmlspecialchars($historyCard['provider_name']); ?>?');">
+                                            <input type="hidden" name="link_orphan" value="1">
+                                            <input type="hidden" name="expense_id" value="<?php echo $txn['id']; ?>">
+                                            <input type="hidden" name="card_name" value="<?php echo htmlspecialchars($historyCard['provider_name']); ?>">
+                                            <input type="hidden" name="return_id" value="<?php echo $historyCard['id']; ?>">
+                                            <button type="submit" class="text-[9px] font-black text-brand-600 hover:text-brand-700 underline uppercase tracking-tighter">Link Now</button>
+                                        </form>
                                     <?php endif; ?>
                                 </div>
                                 <div class="text-[10px] text-gray-400"><?php echo htmlspecialchars($txn['category']); ?></div>
