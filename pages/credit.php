@@ -5,6 +5,36 @@ requireLogin();
 
 $userId = getCurrentUserId();
 
+/**
+ * AUTO-LINKER: Scan for orphaned "Credit Card Bill" entries and link them by keyword
+ */
+function autoLinkCreditCardBills($pdo, $userId) {
+    // 1. Get all active card names for this user
+    $cardStmt = $pdo->prepare("SELECT provider_name FROM credit_accounts WHERE user_id = ?");
+    $cardStmt->execute([$userId]);
+    $cards = $cardStmt->fetchAll(PDO::FETCH_COLUMN);
+    
+    if (empty($cards)) return;
+
+    // 2. Find unlinked bill payments
+    $orphanStmt = $pdo->prepare("SELECT id, description FROM expenses WHERE user_id = ? AND category = 'Credit Card Bill' AND (target_account IS NULL OR target_account = '')");
+    $orphanStmt->execute([$userId]);
+    $orphans = $orphanStmt->fetchAll();
+
+    foreach ($orphans as $orphan) {
+        foreach ($cards as $cardName) {
+            $firstWord = explode(' ', trim($cardName))[0];
+            // Match card name or first word (e.g. "Axis") in description
+            if (stripos($orphan['description'], $cardName) !== false || stripos($orphan['description'], $firstWord) !== false) {
+                $linkStmt = $pdo->prepare("UPDATE expenses SET target_account = ? WHERE id = ?");
+                $linkStmt->execute([$cardName, $orphan['id']]);
+                break; // Linked to first match
+            }
+        }
+    }
+}
+autoLinkCreditCardBills($pdo, $userId);
+
 // Handle POST BEFORE any output
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['delete_id'])) {
@@ -19,15 +49,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute([$cardName, $expenseId, $userId]);
         $_SESSION['flash_message'] = "Transaction linked to $cardName!";
     } elseif (isset($_POST['quick_log'])) {
-        // Quick Transaction Logic
+        // Quick Transaction / Payment Logic
         $cardName = $_POST['card_name'];
         $amount = $_POST['amount'];
         $desc = $_POST['description'];
+        $type = $_POST['type'] ?? 'Expense'; // 'Expense' or 'Payment'
         $date = date('Y-m-d');
         
-        $stmt = $pdo->prepare("INSERT INTO expenses (user_id, date, category, description, amount, payment_method) VALUES (?, ?, 'Credit Purchase', ?, ?, ?)");
-        $stmt->execute([$userId, $date, $desc, $amount, $cardName]);
-        $_SESSION['flash_message'] = "Transaction logged to $cardName.";
+        if ($type === 'Payment') {
+            $stmt = $pdo->prepare("INSERT INTO expenses (user_id, date, category, description, amount, payment_method, target_account) VALUES (?, ?, 'Credit Card Bill', ?, ?, 'Bank Account', ?)");
+            $stmt->execute([$userId, $date, $desc, $amount, $cardName]);
+            $_SESSION['flash_message'] = "Bill payment of ₹$amount logged to $cardName.";
+        } else {
+            $stmt = $pdo->prepare("INSERT INTO expenses (user_id, date, category, description, amount, payment_method) VALUES (?, ?, 'Credit Purchase', ?, ?, ?)");
+            $stmt->execute([$userId, $date, $desc, $amount, $cardName]);
+            $_SESSION['flash_message'] = "Expense of ₹$amount logged to $cardName.";
+        }
     } else {
         $provider = $_POST['provider_name'];
         $limit = $_POST['credit_limit'];
@@ -257,19 +294,31 @@ require_once '../includes/header.php';
             <input type="hidden" name="quick_log" value="1">
             <input type="hidden" name="card_name" id="modalCardName">
             
+            <div class="flex p-1 bg-gray-100 dark:bg-gray-900 rounded-xl">
+                <button type="button" onclick="setQuickLogType('Expense')" id="btnTypeExpense" 
+                        class="flex-1 py-2 text-[10px] font-bold uppercase rounded-lg transition-all bg-white dark:bg-brand-600 text-brand-600 dark:text-white shadow-sm">
+                    Expense
+                </button>
+                <button type="button" onclick="setQuickLogType('Payment')" id="btnTypePayment" 
+                        class="flex-1 py-2 text-[10px] font-bold uppercase rounded-lg transition-all text-gray-500 hover:text-gray-700">
+                    Bill Payment
+                </button>
+                <input type="hidden" name="type" id="modalLogType" value="Expense">
+            </div>
+
             <div>
                 <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Amount (₹)</label>
-                <input type="number" name="amount" required step="0.01" autofocus
+                <input type="number" name="amount" required step="0.01" autofocus id="modalAmount"
                        class="w-full border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 dark:text-white p-4 rounded-xl text-xl font-black outline-none focus:ring-2 focus:ring-brand-500 transition-all">
             </div>
             
             <div>
                 <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Description</label>
-                <input type="text" name="description" placeholder="Starbucks, Gas, etc." required
+                <input type="text" name="description" id="modalDesc" placeholder="Starbucks, Gas, etc." required
                        class="w-full border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 dark:text-white p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500">
             </div>
 
-            <button type="submit" class="w-full bg-gray-900 dark:bg-brand-600 text-white py-4 rounded-xl font-black text-sm hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl shadow-gray-900/10">
+            <button type="submit" id="modalSubmitBtn" class="w-full bg-gray-900 dark:bg-brand-600 text-white py-4 rounded-xl font-black text-sm hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl shadow-gray-900/10">
                 Log Purchase →
             </button>
         </form>
@@ -323,6 +372,8 @@ require_once '../includes/header.php';
                                             <input type="hidden" name="return_id" value="<?php echo $historyCard['id']; ?>">
                                             <button type="submit" class="text-[9px] font-black text-brand-600 hover:text-brand-700 underline uppercase tracking-tighter">Link Now</button>
                                         </form>
+                                    <?php elseif($txn['category'] === 'Credit Card Bill'): ?>
+                                        <span class="ml-2 px-1.5 py-0.5 bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 text-[8px] font-black uppercase rounded border border-brand-200 dark:border-brand-800" title="This payment is automatically linked! Perfect.">Auto-linked ✅</span>
                                     <?php endif; ?>
                                 </div>
                                 <div class="text-[10px] text-gray-400"><?php echo htmlspecialchars($txn['category']); ?></div>
@@ -357,7 +408,31 @@ require_once '../includes/header.php';
 function openQuickLog(card) {
     document.getElementById('quickLogCardName').innerText = card;
     document.getElementById('modalCardName').value = card;
+    setQuickLogType('Expense'); // Reset to default
     document.getElementById('quickLogModal').classList.remove('hidden');
+}
+function setQuickLogType(type) {
+    const btnExp = document.getElementById('btnTypeExpense');
+    const btnPay = document.getElementById('btnTypePayment');
+    const input = document.getElementById('modalLogType');
+    const submitBtn = document.getElementById('modalSubmitBtn');
+    const descInput = document.getElementById('modalDesc');
+    const cardName = document.getElementById('modalCardName').value;
+
+    input.value = type;
+    if (type === 'Payment') {
+        btnPay.className = "flex-1 py-2 text-[10px] font-bold uppercase rounded-lg transition-all bg-white dark:bg-emerald-600 text-emerald-600 dark:text-white shadow-sm";
+        btnExp.className = "flex-1 py-2 text-[10px] font-bold uppercase rounded-lg transition-all text-gray-500 hover:text-gray-700";
+        submitBtn.innerText = "Log Payment →";
+        submitBtn.className = submitBtn.className.replace('bg-gray-900', 'bg-emerald-600').replace('bg-brand-600', 'bg-emerald-600');
+        descInput.value = "Bill Payment: " + cardName;
+    } else {
+        btnExp.className = "flex-1 py-2 text-[10px] font-bold uppercase rounded-lg transition-all bg-white dark:bg-brand-600 text-brand-600 dark:text-white shadow-sm";
+        btnPay.className = "flex-1 py-2 text-[10px] font-bold uppercase rounded-lg transition-all text-gray-500 hover:text-gray-700";
+        submitBtn.innerText = "Log Purchase →";
+        submitBtn.className = submitBtn.className.replace('bg-emerald-600', 'bg-gray-900').replace('bg-emerald-600', 'bg-brand-600');
+        descInput.value = "";
+    }
 }
 function closeQuickLog() {
     document.getElementById('quickLogModal').classList.add('hidden');
