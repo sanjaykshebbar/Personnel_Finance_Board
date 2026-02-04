@@ -171,8 +171,8 @@ if (isset($_GET['history_view'])) {
 // FIXED: Added TRIM(LOWER(...)) to ensure case-insensitive matching
 $stmt = $pdo->prepare("
     SELECT ca.*, 
-    (SELECT IFNULL(SUM(amount), 0) FROM expenses WHERE TRIM(LOWER(payment_method)) = TRIM(LOWER(ca.provider_name)) AND converted_to_emi = 0 AND user_id = ca.user_id) as one_time_expenses,
-    (SELECT IFNULL(SUM(amount), 0) FROM expenses WHERE category = 'Credit Card Bill' AND TRIM(LOWER(target_account)) = TRIM(LOWER(ca.provider_name)) AND user_id = ca.user_id) as bill_payments,
+    (SELECT IFNULL(SUM(amount), 0) FROM expenses WHERE TRIM(LOWER(payment_method)) = TRIM(LOWER(ca.provider_name)) AND converted_to_emi = 0 AND user_id = ca.user_id AND date >= '\" . SYSTEM_START_DATE . \"') as one_time_expenses,
+    (SELECT IFNULL(SUM(amount), 0) FROM expenses WHERE category = 'Credit Card Bill' AND TRIM(LOWER(target_account)) = TRIM(LOWER(ca.provider_name)) AND user_id = ca.user_id AND date >= '\" . SYSTEM_START_DATE . \"') as bill_payments,
     (SELECT IFNULL(SUM(total_amount - (emi_amount * paid_months)), 0) FROM emis WHERE TRIM(LOWER(payment_method)) = TRIM(LOWER(ca.provider_name)) AND user_id = ca.user_id AND status = 'Active') as emi_outstanding
     FROM credit_accounts ca 
     WHERE ca.user_id = ?
@@ -186,9 +186,18 @@ require_once '../includes/header.php';
 ?>
 
 <div class="space-y-6">
-    <!-- Form -->
+    <!-- Header & Form -->
     <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow border border-gray-100 dark:border-gray-700 transition-colors">
-        <h3 class="font-bold text-lg mb-4 text-gray-900 dark:text-white"><?php echo $editRow?'Edit Account':'Add Credit Account'; ?></h3>
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+            <div>
+                <h3 class="font-bold text-lg text-gray-900 dark:text-white"><?php echo $editRow?'Edit Account':'Add Credit Account'; ?></h3>
+                <p class="text-xs text-gray-400">Manage your cards and limits.</p>
+            </div>
+            <div class="px-3 py-1.5 bg-brand-50 dark:bg-brand-900/30 border border-brand-100 dark:border-brand-800 rounded-lg">
+                <p class="text-[10px] font-black text-brand-600 dark:text-brand-400 uppercase tracking-widest">Active Accounting Start: <?php echo date('d M Y', strtotime(SYSTEM_START_DATE)); ?></p>
+            </div>
+        </div>
+        
         <form method="POST" action="credit.php" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
             <input type="hidden" name="id" value="<?php echo $editRow['id']??''; ?>">
             <div>
