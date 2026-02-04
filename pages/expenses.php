@@ -38,9 +38,39 @@ $categories = [
 // Handle POST (Add/Delete)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['delete_id'])) {
-        $stmt = $pdo->prepare("DELETE FROM expenses WHERE id = ? AND user_id = ?");
-        $stmt->execute([$_POST['delete_id'], $userId]);
-        $_SESSION['flash_message'] = "Expense deleted.";
+        $expenseId = $_POST['delete_id'];
+        
+        // Fetch expense details BEFORE deleting to handle cascading side-effects
+        $stmt = $pdo->prepare("SELECT * FROM expenses WHERE id = ? AND user_id = ?");
+        $stmt->execute([$expenseId, $userId]);
+        $exp = $stmt->fetch();
+        
+        if ($exp) {
+            $pdo->beginTransaction();
+            try {
+                // CASE 1: This expense was converted to an EMI -> Delete the entire EMI plan
+                if ($exp['converted_to_emi']) {
+                    $pdo->prepare("DELETE FROM emis WHERE expense_id = ? AND user_id = ?")->execute([$expenseId, $userId]);
+                }
+                
+                // CASE 2: This was a payment record linked to an EMI or Loan -> Rollback progress
+                if (!empty($exp['linked_type']) && !empty($exp['linked_id'])) {
+                    if ($exp['linked_type'] === 'EMI') {
+                        $pdo->prepare("UPDATE emis SET paid_months = MAX(0, paid_months - 1), status = 'Active' WHERE id = ? AND user_id = ?")->execute([$exp['linked_id'], $userId]);
+                    } elseif ($exp['linked_type'] === 'LOAN') {
+                        $pdo->prepare("UPDATE loans SET paid_amount = MAX(0, paid_amount - ?), status = 'Pending' WHERE id = ? AND user_id = ?")->execute([$exp['amount'], $exp['linked_id'], $userId]);
+                    }
+                }
+                
+                // Delete the actual expense
+                $pdo->prepare("DELETE FROM expenses WHERE id = ?")->execute([$expenseId]);
+                $pdo->commit();
+                $_SESSION['flash_message'] = "Expense deleted and related data synchronized.";
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                $_SESSION['flash_message'] = "Error during cascading delete: " . $e->getMessage();
+            }
+        }
     } else {
         try {
             $date = $_POST['date'];
@@ -80,9 +110,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                  }
             }
 
-            // Insert Expense Logic (Include target_account)
-            $stmt = $pdo->prepare("INSERT INTO expenses (user_id, date, category, description, amount, payment_method, converted_to_emi, target_account) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+            // Insert Expense Logic (Include target_account and links)
+            $stmt = $pdo->prepare("INSERT INTO expenses (user_id, date, category, description, amount, payment_method, converted_to_emi, target_account, linked_type, linked_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             $isEmi = (isset($_POST['convert_to_emi']) && $_POST['convert_to_emi'] == 'on') ? 1 : 0;
+            
+            $linkedType = null;
+            $linkedId = null;
+            if (!empty($_POST['link_ref'])) {
+                $parts = explode('_', $_POST['link_ref']);
+                $linkedType = $parts[0];
+                $linkedId = $parts[1];
+            }
             
             // Auto-improve description for Credit Card bills to ensure they are searchable in history (Compatibility fallback)
             if ($category === 'Credit Card Bill' && !empty($targetAccount)) {
@@ -94,7 +132,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Transaction Start
             $pdo->beginTransaction();
             
-            $stmt->execute([$userId, $date, $category, $desc, $amount, $method, $isEmi, $targetAccount]);
+            $stmt->execute([$userId, $date, $category, $desc, $amount, $method, $isEmi, $targetAccount, $linkedType, $linkedId]);
+            $newExpenseId = $pdo->lastInsertId();
             
             // Handle EMI Conversion (New Plan)
             if ($isEmi) {
@@ -113,8 +152,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $emi = $p / $n;
                 }
 
-                $stmt = $pdo->prepare("INSERT INTO emis (user_id, name, total_amount, interest_rate, tenure_months, emi_amount, start_date, payment_method) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-                $stmt->execute([$userId, $desc, $amount, $interest, $tenure, $emi, $date, $method]);
+                $stmt = $pdo->prepare("INSERT INTO emis (user_id, name, total_amount, interest_rate, tenure_months, emi_amount, start_date, payment_method, expense_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$userId, $desc, $amount, $interest, $tenure, $emi, $date, $method, $newExpenseId]);
             } 
             
             // Handle Linking to Existing Loan/EMI

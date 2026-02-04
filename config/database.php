@@ -54,6 +54,8 @@ function initDb($pdo) {
         amount REAL NOT NULL,
         payment_method TEXT NOT NULL,
         target_account TEXT,
+        linked_type TEXT, -- 'LOAN' or 'EMI'
+        linked_id INTEGER,  -- The ID of the Loan or EMI record
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )";
@@ -111,6 +113,7 @@ function initDb($pdo) {
         paid_months INTEGER DEFAULT 0,
         start_date DATE NOT NULL,
         status TEXT CHECK(status IN ('Active', 'Closed', 'Completed')) DEFAULT 'Active',
+        expense_id INTEGER, -- The parent expense this EMI was converted from
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )";
@@ -181,11 +184,20 @@ function initDb($pdo) {
             if (!in_array('target_account', $existingCols)) {
                 try { $pdo->exec("ALTER TABLE expenses ADD COLUMN target_account TEXT"); } catch (Exception $e) {}
             }
+            if (!in_array('linked_type', $existingCols)) {
+                try { $pdo->exec("ALTER TABLE expenses ADD COLUMN linked_type TEXT"); } catch (Exception $e) {}
+            }
+            if (!in_array('linked_id', $existingCols)) {
+                try { $pdo->exec("ALTER TABLE expenses ADD COLUMN linked_id INTEGER"); } catch (Exception $e) {}
+            }
         }
 
         if ($table === 'emis') {
             if (!in_array('payment_method', $existingCols)) {
                 try { $pdo->exec("ALTER TABLE emis ADD COLUMN payment_method TEXT"); } catch (Exception $e) {}
+            }
+            if (!in_array('expense_id', $existingCols)) {
+                try { $pdo->exec("ALTER TABLE emis ADD COLUMN expense_id INTEGER"); } catch (Exception $e) {}
             }
         }
 

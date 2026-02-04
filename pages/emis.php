@@ -53,11 +53,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $pdo->prepare("UPDATE emis SET paid_months = ?, status = ? WHERE id = ? AND user_id = ?");
                 $stmt->execute([$newPaidMonths, $status, $id, $userId]);
                 
-                // Record as Expense
+                // Record as Expense (Include links for cascading delete)
                 $desc = "EMI Payment: " . $emi['name'];
                 $paymentDate = $_POST['payment_date'] ?? date('Y-m-d');
-                $expStmt = $pdo->prepare("INSERT INTO expenses (user_id, date, category, description, amount, payment_method) VALUES (?, ?, 'EMI/Bills', ?, ?, ?)");
-                $expStmt->execute([$userId, $paymentDate, $desc, $paidAmount, $emi['payment_method']]);
+                $expStmt = $pdo->prepare("INSERT INTO expenses (user_id, date, category, description, amount, payment_method, linked_type, linked_id) VALUES (?, ?, 'EMI/Bills', ?, ?, ?, 'EMI', ?)");
+                $expStmt->execute([$userId, $paymentDate, $desc, $paidAmount, $emi['payment_method'], $id]);
                 
                 $_SESSION['flash_message'] = "Payment of ₹" . number_format($paidAmount, 2) . " recorded on " . $paymentDate . ". " . 
                                             ($status === 'Completed' ? "EMI COMPLETED! 🎉" : ($emi['tenure_months'] - $newPaidMonths) . " payments remaining.");
@@ -84,8 +84,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $emi = $amount / $tenure;
         }
         
-        $stmt = $pdo->prepare("INSERT INTO emis (user_id, name, total_amount, interest_rate, tenure_months, emi_amount, start_date, payment_method) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-        $stmt->execute([$userId, $name, $amount, $rate, $tenure, $emi, $start, $method]);
+        $stmt = $pdo->prepare("INSERT INTO emis (user_id, name, total_amount, interest_rate, tenure_months, emi_amount, start_date, payment_method, expense_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->execute([$userId, $name, $amount, $rate, $tenure, $emi, $start, $method, $expenseId]);
         
         // Mark expense as converted if applicable
         if ($expenseId) {

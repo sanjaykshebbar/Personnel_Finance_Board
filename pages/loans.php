@@ -109,8 +109,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         if ($method === 'Credit Card' && !empty($_POST['credit_card_name'])) {
                             $method = $_POST['credit_card_name']; // Use the specific card name
                         }
-                        $ins = $pdo->prepare("INSERT INTO expenses (user_id, date, category, description, amount, payment_method) VALUES (?, ?, 'EMI/Bills', ?, ?, ?)");
-                        $ins->execute([$userId, $payDate, $desc, $amt, $method]);
+                        $ins = $pdo->prepare("INSERT INTO expenses (user_id, date, category, description, amount, payment_method, linked_type, linked_id) VALUES (?, ?, 'EMI/Bills', ?, ?, ?, 'LOAN', ?)");
+                        $ins->execute([$userId, $payDate, $desc, $amt, $method, $id]);
 
                         $invDesc = "Debt Reduction: " . ($loan['person_name'] ?? 'Loan');
                         $invStmt = $pdo->prepare("INSERT INTO investments (user_id, investment_name, frequency, amount, status, due_date) VALUES (?, ?, 'Monthly', ?, 'Paid', ?)");
@@ -191,8 +191,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // 2. If 'Lent', record as Expense
             if ($type === 'Lent') {
                 $desc = "Money Lent: " . $name;
-                $ins = $pdo->prepare("INSERT INTO expenses (user_id, date, category, description, amount, payment_method) VALUES (?, ?, 'EMI/Bills', ?, ?, 'Bank Account')");
-                $ins->execute([$userId, $date, $desc, $amount]);
+                $ins = $pdo->prepare("INSERT INTO expenses (user_id, date, category, description, amount, payment_method, linked_type, linked_id) VALUES (?, ?, 'EMI/Bills', ?, ?, 'Bank Account', 'LOAN', ?)");
+                $ins->execute([$userId, $date, $desc, $amount, $loanId]);
             }
 
             $_SESSION['flash_message'] = "New entry logged! Recorded ₹" . number_format($amount, 2);
