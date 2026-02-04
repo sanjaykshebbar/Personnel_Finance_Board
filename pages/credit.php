@@ -72,6 +72,33 @@ if (isset($_GET['edit'])) {
     $editRow = $stmt->fetch();
 }
 
+// History View Logic
+$historyCard = null;
+$historyTxns = [];
+if (isset($_GET['history_view'])) {
+    $stmt = $pdo->prepare("SELECT * FROM credit_accounts WHERE id = ? AND user_id = ?");
+    $stmt->execute([$_GET['history_view'], $userId]);
+    $historyCard = $stmt->fetch();
+
+    if ($historyCard) {
+        $cardName = $historyCard['provider_name'];
+        // Fetch Spend (Payment Method = Card) AND Bill Payments (Description matches Card AND Category NOT Credit Purchase usually, but description is safer)
+        // We look for description LIKE %CardName% to find payments made TO this card (e.g. from Bank)
+        $txnStmt = $pdo->prepare("
+            SELECT * FROM expenses 
+            WHERE user_id = ? 
+            AND (
+                TRIM(LOWER(payment_method)) = TRIM(LOWER(?)) -- Spent using card
+                OR 
+                (description LIKE ? AND TRIM(LOWER(payment_method)) != TRIM(LOWER(?))) -- Bill Payment TO card (approx heuristic)
+            )
+            ORDER BY date DESC
+        ");
+        $txnStmt->execute([$userId, $cardName, "%$cardName%", $cardName]);
+        $historyTxns = $txnStmt->fetchAll();
+    }
+}
+
 // Fetch Credit Accounts with Advanced Usage Calculation BEFORE header
 // FIXED: Added TRIM(LOWER(...)) to ensure case-insensitive matching
 $stmt = $pdo->prepare("
@@ -142,7 +169,8 @@ require_once '../includes/header.php';
                     <p class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Credit card Profile</p>
                 </div>
                 <div class="flex space-x-2">
-                    <button onclick="openQuickLog('<?php echo htmlspecialchars($acc['provider_name']); ?>')" class="p-1.5 bg-brand-50 dark:bg-brand-900/30 text-brand-600 rounded-md hover:bg-brand-100 transition text-[9px] font-black uppercase">+ Log</button>
+                    <button onclick="openQuickLog('<?php echo htmlspecialchars($acc['provider_name']); ?>')" class="p-1.5 bg-brand-50 dark:bg-brand-900/30 text-brand-600 rounded-md hover:bg-brand-100 transition text-[9px] font-black uppercase" title="Log Expense">+ Log</button>
+                    <a href="?history_view=<?php echo $acc['id']; ?>" class="p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 rounded-md hover:bg-blue-100 transition text-[9px] font-black uppercase" title="View History">📜</a>
                     <a href="?edit=<?php echo $acc['id']; ?>" class="p-1.5 bg-gray-50 dark:bg-gray-900 rounded-md hover:bg-brand-50 dark:hover:bg-brand-900/30 transition">✏️</a>
                     <form method="POST" onsubmit="return confirm('Delete card?')" class="inline">
                         <input type="hidden" name="delete_id" value="<?php echo $acc['id']; ?>">
@@ -224,6 +252,72 @@ require_once '../includes/header.php';
         </form>
     </div>
 </div>
+
+<!-- History Modal -->
+<?php if ($historyCard): ?>
+<div id="historyModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl h-[80vh] flex flex-col">
+        <div class="p-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
+            <div>
+                <h3 class="font-black text-lg text-gray-900 dark:text-white"><?php echo htmlspecialchars($historyCard['provider_name']); ?> History</h3>
+                <p class="text-[10px] text-gray-500 font-bold uppercase">Transactions & Payments</p>
+            </div>
+            <a href="credit.php" class="text-gray-400 hover:text-gray-600 text-xl font-bold">✕</a>
+        </div>
+        
+        <div class="flex-grow overflow-y-auto p-0">
+            <?php if (empty($historyTxns)): ?>
+                <div class="flex flex-col items-center justify-center h-full text-gray-400">
+                    <p class="text-4xl mb-2">📜</p>
+                    <p class="text-sm font-bold">No transactions found.</p>
+                </div>
+            <?php else: ?>
+                <table class="min-w-full divide-y divide-gray-100 dark:divide-gray-700">
+                    <thead class="bg-gray-50 dark:bg-gray-900 sticky top-0">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Date</th>
+                            <th class="px-6 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider">Description</th>
+                            <th class="px-6 py-3 text-right text-[10px] font-bold text-gray-500 uppercase tracking-wider">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-50 dark:divide-gray-700">
+                        <?php foreach ($historyTxns as $txn): 
+                            $isBillPayment = (trim(strtolower($txn['payment_method'])) !== trim(strtolower($historyCard['provider_name'])));
+                            // If payment_method == Card, it's a SPEND (Liability Increases).
+                            // If payment_method != Card (e.g. Bank) AND Description matches, it's a PAYMENT (Liability Decreases).
+                        ?>
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
+                            <td class="px-6 py-4 whitespace-nowrap text-xs text-gray-500 font-medium">
+                                <?php echo date('d M Y', strtotime($txn['date'])); ?>
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-900 dark:text-white">
+                                <div class="font-bold"><?php echo htmlspecialchars($txn['description']); ?></div>
+                                <div class="text-[10px] text-gray-400"><?php echo htmlspecialchars($txn['category']); ?></div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-right">
+                                <?php if ($isBillPayment): ?>
+                                    <span class="text-emerald-600 font-bold text-sm bg-emerald-50 dark:bg-emerald-900/20 px-2 py-1 rounded inline-flex items-center">
+                                        ↓ ₹<?php echo number_format($txn['amount'], 2); ?>
+                                    </span>
+                                <?php else: ?>
+                                    <span class="text-gray-900 dark:text-white font-bold text-sm">
+                                        ₹<?php echo number_format($txn['amount'], 2); ?>
+                                    </span>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            <?php endif; ?>
+        </div>
+        
+        <div class="p-4 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-center">
+            <span class="text-[10px] text-gray-400 font-bold uppercase">Note: Bill payments are detected if description contains card name.</span>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
