@@ -75,13 +75,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $method = $_POST['payment_method'] ?? 'Other';
         $expenseId = $_POST['expense_id'] ?? null;
         
-        // Calculate EMI
+        // Calculate EMI (Fallback)
         $r = $rate / 12 / 100;
         if ($r > 0) {
-            $emi = ($amount * $r * pow(1 + $r, $tenure)) / (pow(1 + $r, $tenure) - 1);
+            $computedEmi = ($amount * $r * pow(1 + $r, $tenure)) / (pow(1 + $r, $tenure) - 1);
         } else {
-            $emi = $amount / $tenure;
+            $computedEmi = $amount / $tenure;
         }
+        
+        // Use user-provided EMI if present and valid, otherwise use computed
+        $emi = (!empty($_POST['emi_amount']) && (float)$_POST['emi_amount'] > 0) ? (float)$_POST['emi_amount'] : $computedEmi;
 
         $paidInitial = (int)($_POST['initial_paid_installments'] ?? 0);
         
@@ -236,16 +239,6 @@ document.querySelectorAll('.emi-chart').forEach(canvas => {
 
 function max(a, b) { return a > b ? a : b; }
 
-function openPayModal(id, name, amount) {
-    document.getElementById('payEmiId').value = id;
-    document.getElementById('payEmiAmount').value = amount;
-    document.getElementById('payEmiName').innerText = name;
-    document.getElementById('payEmiModal').classList.remove('hidden');
-}
-
-function closePayModal() {
-    document.getElementById('payEmiModal').classList.add('hidden');
-}
 </script>
 
 <!-- Record Payment Modal -->
@@ -303,12 +296,17 @@ function closePayModal() {
             <div class="grid grid-cols-2 gap-4">
                 <div>
                     <label class="block text-xs font-bold text-gray-700 uppercase">Tenure (Months)</label>
-                    <input type="number" name="tenure_months" required class="w-full border p-2 rounded">
+                    <input type="number" name="tenure_months" id="addEmiTenure" required class="w-full border p-2 rounded">
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-gray-700 uppercase">Start Date</label>
-                    <input type="date" name="start_date" value="<?php echo date('Y-m-d'); ?>" required class="w-full border p-2 rounded">
+                    <label class="block text-xs font-bold text-gray-700 uppercase">Monthly EMI (Calculated)</label>
+                    <input type="number" step="0.01" name="emi_amount" id="addEmiCalc" required 
+                           class="w-full border p-2 rounded bg-brand-50 font-bold text-brand-700">
                 </div>
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-gray-700 uppercase">Start Date</label>
+                <input type="date" name="start_date" value="<?php echo date('Y-m-d'); ?>" required class="w-full border p-2 rounded">
             </div>
 
             <div>
@@ -322,7 +320,42 @@ function closePayModal() {
                 <button type="submit" class="px-4 py-2 bg-brand-600 text-white rounded hover:bg-brand-700">Calculate & Save</button>
             </div>
         </form>
-    </div>
 </div>
+</div>
+
+<script>
+function calculateNewEmi() {
+    const p = parseFloat(document.querySelector('input[name="total_amount"]').value) || 0;
+    const r_annual = parseFloat(document.querySelector('input[name="interest_rate"]').value) || 0;
+    const n = parseInt(document.getElementById('addEmiTenure').value) || 0;
+    
+    if (p > 0 && n > 0) {
+        const r = (r_annual / 100) / 12;
+        let emi = 0;
+        if (r > 0) {
+            emi = (p * Math.pow(1 + r, n) * r) / (Math.pow(1 + r, n) - 1);
+        } else {
+            emi = p / n;
+        }
+        document.getElementById('addEmiCalc').value = emi.toFixed(2);
+    }
+}
+
+['total_amount', 'interest_rate'].forEach(name => {
+    document.querySelector(`input[name="${name}"]`).addEventListener('input', calculateNewEmi);
+});
+document.getElementById('addEmiTenure').addEventListener('input', calculateNewEmi);
+
+function openPayModal(id, name, amount) {
+    document.getElementById('payEmiId').value = id;
+    document.getElementById('payEmiName').innerText = name;
+    document.getElementById('payEmiAmount').value = amount;
+    document.getElementById('payEmiModal').classList.remove('hidden');
+}
+
+function closePayModal() {
+    document.getElementById('payEmiModal').classList.add('hidden');
+}
+</script>
 
 <?php require_once '../includes/footer.php'; ?>

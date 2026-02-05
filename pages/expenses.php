@@ -158,15 +158,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 if ($tenure <= 0) throw new Exception("Tenure must be valid.");
 
-                // Calculate EMI
+                // Calculate EMI (Fallback)
                 $p = $amount;
                 $r = ($interest / 100) / 12;
                 $n = $tenure;
                 if ($r > 0) {
-                    $emi = ($p * $r * pow(1 + $r, $n)) / (pow(1 + $r, $n) - 1);
+                    $computedEmi = ($p * $r * pow(1 + $r, $n)) / (pow(1 + $r, $n) - 1);
                 } else {
-                    $emi = $p / $n;
+                    $computedEmi = $p / $n;
                 }
+                
+                // Use user-provided EMI if present and valid, otherwise use computed
+                $emi = (!empty($_POST['emi_amount']) && (float)$_POST['emi_amount'] > 0) ? (float)$_POST['emi_amount'] : $computedEmi;
 
                 $stmt = $pdo->prepare("INSERT INTO emis (user_id, name, total_amount, interest_rate, tenure_months, emi_amount, start_date, payment_method, expense_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 $stmt->execute([$userId, $desc, $amount, $interest, $tenure, $emi, $date, $method, $newExpenseId]);
@@ -336,7 +339,7 @@ foreach($expenses as $e) {
                 </div>
                 <div>
                     <label class="block text-[10px] font-bold text-gray-400 uppercase">Monthly EMI (Calculated)</label>
-                    <div id="expEmiCalc" class="text-lg font-bold text-brand-600 pt-1">₹0.00</div>
+                    <input type="number" step="0.01" name="emi_amount" id="expEmiVal" class="w-full border p-2 rounded text-sm bg-brand-50 font-bold text-brand-700">
                 </div>
             </div>
 
@@ -531,9 +534,9 @@ function calculateExpEmi() {
         } else {
             emi = p / n;
         }
-        document.getElementById('expEmiCalc').innerText = '₹' + emi.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        document.getElementById('expEmiVal').value = emi.toFixed(2);
     } else {
-        document.getElementById('expEmiCalc').innerText = '₹0.00';
+        document.getElementById('expEmiVal').value = '';
     }
 }
 

@@ -317,8 +317,8 @@ foreach($loans as $l) {
                         <input type="number" step="0.001" name="interest_rate" id="loanInterest" placeholder="0.00" class="w-full bg-white dark:bg-gray-900 border-none rounded-xl p-3 text-sm font-bold focus:ring-2 focus:ring-brand-500 dark:text-white">
                     </div>
                     <div>
-                        <label class="block text-[10px] font-black text-brand-600 uppercase tracking-widest mb-2">Computed EMI</label>
-                        <input type="number" step="0.01" name="emi_amount" id="loanEmi" readonly class="w-full bg-brand-100 dark:bg-brand-900/50 border-none rounded-xl p-3 text-sm font-black text-brand-700 dark:text-brand-400">
+                        <label class="block text-[10px] font-black text-brand-600 uppercase tracking-widest mb-2">Monthly EMI</label>
+                        <input type="number" step="0.01" name="emi_amount" id="loanEmi" class="w-full bg-brand-50 dark:bg-brand-900/40 border-none rounded-xl p-3 text-sm font-black text-brand-700 dark:text-brand-400 focus:ring-2 focus:ring-brand-500">
                     </div>
                     <div>
                         <label class="block text-[10px] font-black text-brand-600 uppercase tracking-widest mb-2">Account Number</label>

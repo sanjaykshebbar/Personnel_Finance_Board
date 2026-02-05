@@ -79,6 +79,10 @@ require_once '../includes/header.php';
                                 <span class="text-blue-500">✓</span>
                                 <span>High-precision interest rates: input fields now supports up to 3 decimal points.</span>
                             </li>
+                            <li class="flex items-start gap-2">
+                                <span class="text-blue-500">✓</span>
+                                <span>Manual EMI Adjustment: You can now override calculated EMI amounts to match bank statements exactly.</span>
+                            </li>
                         </ul>
                     </div>
                 </div>
