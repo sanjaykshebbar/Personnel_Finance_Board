@@ -146,6 +146,18 @@ function initDb($pdo) {
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )";
 
+    // 9. Quick Entries (Drafts) Table
+    $queries[] = "CREATE TABLE IF NOT EXISTS quick_entries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        amount REAL NOT NULL,
+        description TEXT,
+        payment_method TEXT NOT NULL,
+        date DATE NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )";
+
     // Execute creation queries
     foreach ($queries as $q) {
         $pdo->exec($q);

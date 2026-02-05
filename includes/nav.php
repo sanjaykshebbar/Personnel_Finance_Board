@@ -4,6 +4,7 @@ $prefix = (basename(dirname($_SERVER['PHP_SELF'])) == 'expense-tracker') ? './' 
 
 $navItems = [
     ['name' => 'Dashboard', 'url' => $prefix . 'index.php', 'icon' => 'home'],
+    ['name' => 'Quick Update', 'url' => $prefix . 'pages/quick_add.php', 'icon' => 'bolt'],
     ['name' => 'Income', 'url' => $prefix . 'pages/income.php', 'icon' => 'banknotes'],
     ['name' => 'Document Vault', 'url' => $prefix . 'pages/vault.php', 'icon' => 'folder'],
     ['name' => 'Expenses', 'url' => $prefix . 'pages/expenses.php', 'icon' => 'credit-card'],
@@ -53,6 +54,7 @@ if (!function_exists('isDataActive')) {
                         <?php 
                         switch($item['icon']) {
                             case 'home': echo '🏠'; break;
+                            case 'bolt': echo '⚡'; break;
                             case 'banknotes': echo '💰'; break;
                             case 'credit-card': echo '💸'; break;
                             case 'trending-up': echo '📈'; break;
@@ -122,6 +124,7 @@ if (!function_exists('isDataActive')) {
                         <?php 
                         switch($item['icon']) {
                             case 'home': echo '🏠'; break;
+                            case 'bolt': echo '⚡'; break;
                             case 'banknotes': echo '💰'; break;
                             case 'credit-card': echo '💸'; break;
                             case 'trending-up': echo '📈'; break;

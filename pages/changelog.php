@@ -10,7 +10,7 @@ require_once '../includes/header.php';
     <div class="relative overflow-hidden bg-brand-600 rounded-[2.5rem] p-8 md:p-12 text-white shadow-2xl shadow-brand-500/20">
         <div class="relative z-10">
             <div class="flex items-center gap-3 mb-4">
-                <span class="px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-xs font-black uppercase tracking-widest">Version 2.1.2</span>
+                <span class="px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-xs font-black uppercase tracking-widest">Version 2.2.0</span>
                 <span class="text-white/60 text-xs font-medium">Released Feb 5, 2026</span>
             </div>
             <h1 class="text-3xl md:text-5xl font-black tracking-tight mb-4">Product Evolution</h1>
@@ -25,6 +25,45 @@ require_once '../includes/header.php';
 
     <!-- Timeline -->
     <div class="space-y-12">
+        <!-- V2.2.0 -->
+        <div class="relative pl-8 md:pl-0">
+            <!-- Connector Line -->
+            <div class="hidden md:block absolute left-1/2 -ml-px h-full w-0.5 bg-gray-200 dark:bg-gray-800"></div>
+            
+            <div class="md:grid md:grid-cols-2 md:gap-16 items-start">
+                <div class="md:text-right">
+                    <div class="sticky top-24">
+                        <span class="inline-block px-4 py-2 bg-brand-500 text-white text-sm font-black rounded-2xl mb-4 shadow-lg shadow-brand-500/20">v2.2.0</span>
+                        <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-2">Offline-First & Smart Sync</h2>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mb-6 md:mb-0">Introducing "Quick Update" to log spends on the go and sync them intelligently.</p>
+                    </div>
+                </div>
+                
+                <div class="space-y-6">
+                    <div class="bg-white dark:bg-gray-800 p-6 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm transition-all hover:shadow-md">
+                        <div class="flex items-center gap-3 mb-4">
+                            <div class="h-10 w-10 bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400 rounded-xl flex items-center justify-center text-xl">⚡</div>
+                            <h3 class="font-bold text-gray-900 dark:text-white">Quick Update Feature</h3>
+                        </div>
+                        <ul class="space-y-3 text-sm text-gray-600 dark:text-gray-400">
+                            <li class="flex items-start gap-2">
+                                <span class="text-amber-500">✓</span>
+                                <span><b>Offline-ready Drafts:</b> Log transactions instantly in a "Pending" list without affecting balances immediately.</span>
+                            </li>
+                            <li class="flex items-start gap-2">
+                                <span class="text-amber-500">✓</span>
+                                <span><b>Smart Sync:</b> "Sync All" moves drafts to the main ledger and auto-updates Bank Balance (for UPI) or Credit Utilization (for Cards).</span>
+                            </li>
+                            <li class="flex items-start gap-2">
+                                <span class="text-amber-500">✓</span>
+                                <span><b>Streamlined UI:</b> Minimalist form accessible via navbar for rapid entry.</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- V2.1.2 -->
         <div class="relative pl-8 md:pl-0">
             <!-- Connector Line -->
