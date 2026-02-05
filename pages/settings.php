@@ -186,7 +186,7 @@ require_once '../includes/header.php';
             </div>
         <?php endif; ?>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch mb-8">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch mb-8">
             <!-- Backup -->
             <div class="bg-gray-50 dark:bg-gray-900/50 p-6 rounded-xl border border-gray-100 dark:border-gray-700 flex flex-col">
                 <div class="h-10 w-10 bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400 rounded-lg flex items-center justify-center text-lg mb-4">
@@ -223,6 +223,20 @@ require_once '../includes/header.php';
                         Upload & Restore
                     </button>
                 </form>
+            </div>
+
+            <!-- Bulk Import -->
+            <div class="bg-gray-50 dark:bg-gray-900/50 p-6 rounded-xl border border-gray-100 dark:border-gray-700 flex flex-col md:col-span-2 lg:col-span-1">
+                <div class="h-10 w-10 bg-emerald-100 dark:bg-emerald-900 text-emerald-600 dark:text-emerald-400 rounded-lg flex items-center justify-center text-lg mb-4">
+                    📊
+                </div>
+                <h3 class="font-bold text-gray-900 dark:text-white mb-2">Bulk Import</h3>
+                <p class="text-xs text-gray-500 dark:text-gray-400 leading-relaxed flex-grow mb-6">
+                    Add multiple expenses at once by uploading a formatted CSV file. Great for migrating historical records.
+                </p>
+                <a href="import.php" class="mt-auto w-full bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-lg text-sm font-bold transition shadow-sm text-center">
+                    Import from CSV
+                </a>
             </div>
         </div>
 

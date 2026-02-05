@@ -1,0 +1,7 @@
+Verifying for User ID: 1
+SYSTEM_START_DATE: 2026-02-01
+Card: OneCard
+  - Expenses since start: ₹0
+  - Bill Payments: ₹0
+  - EMI Outstanding: ₹52807.36523536
+  - Calculated Balance: ₹0

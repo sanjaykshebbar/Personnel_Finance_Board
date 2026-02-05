@@ -2,7 +2,7 @@
 // config/version.php
 // Version tracking for OTA updates
 
-define('APP_VERSION', '2.1.0');
+define('APP_VERSION', '2.1.1');
 define('APP_NAME', 'Finance Board');
 define('LAST_UPDATE_COMMIT', 'unknown');
 define('LAST_UPDATE_DATE', 'unknown');

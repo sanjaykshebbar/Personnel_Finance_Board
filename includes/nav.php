@@ -14,6 +14,7 @@ $navItems = [
     ['name' => 'Credit', 'url' => $prefix . 'pages/credit.php', 'icon' => 'scale'],
     ['name' => 'System Update', 'url' => $prefix . 'pages/update.php', 'icon' => 'arrow-path'],
     ['name' => 'Maintenance', 'url' => $prefix . 'pages/settings.php', 'icon' => 'cog'],
+    ['name' => 'Change Log', 'url' => $prefix . 'pages/changelog.php', 'icon' => 'list-bullet'],
 ];
 
 if (!function_exists('isDataActive')) {
@@ -63,6 +64,7 @@ if (!function_exists('isDataActive')) {
                             case 'folder': echo '📁'; break;
                             case 'arrow-path': echo '🔄'; break;
                             case 'cog': echo '⚙️'; break;
+                            case 'list-bullet': echo '📜'; break;
                             default: echo '•';
                         }
                         ?>
@@ -131,6 +133,7 @@ if (!function_exists('isDataActive')) {
                             case 'folder': echo '📁'; break;
                             case 'arrow-path': echo '🔄'; break;
                             case 'cog': echo '⚙️'; break;
+                            case 'list-bullet': echo '📜'; break;
                             default: echo '•';
                         }
                         ?>
