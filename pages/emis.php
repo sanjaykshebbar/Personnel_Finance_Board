@@ -290,7 +290,7 @@ function closePayModal() {
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-700 uppercase">Interest Rate (% p.a)</label>
-                    <input type="number" step="0.1" name="interest_rate" value="15" required class="w-full border p-2 rounded">
+                    <input type="number" step="0.001" name="interest_rate" value="15" required class="w-full border p-2 rounded">
                 </div>
             </div>
             <div>

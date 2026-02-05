@@ -314,7 +314,7 @@ foreach($loans as $l) {
                     </div>
                     <div>
                         <label class="block text-[10px] font-black text-brand-600 uppercase tracking-widest mb-2">Annual Int. (%)</label>
-                        <input type="number" step="0.01" name="interest_rate" id="loanInterest" placeholder="0.00" class="w-full bg-white dark:bg-gray-900 border-none rounded-xl p-3 text-sm font-bold focus:ring-2 focus:ring-brand-500 dark:text-white">
+                        <input type="number" step="0.001" name="interest_rate" id="loanInterest" placeholder="0.00" class="w-full bg-white dark:bg-gray-900 border-none rounded-xl p-3 text-sm font-bold focus:ring-2 focus:ring-brand-500 dark:text-white">
                     </div>
                     <div>
                         <label class="block text-[10px] font-black text-brand-600 uppercase tracking-widest mb-2">Computed EMI</label>

@@ -332,7 +332,7 @@ foreach($expenses as $e) {
                 </div>
                 <div>
                     <label class="block text-[10px] font-bold text-gray-400 uppercase">Interest Rate (% p.a)</label>
-                    <input type="number" step="0.1" name="interest_rate" id="expInterest" value="15" class="w-full border p-2 rounded text-sm">
+                    <input type="number" step="0.001" name="interest_rate" id="expInterest" value="15" class="w-full border p-2 rounded text-sm">
                 </div>
                 <div>
                     <label class="block text-[10px] font-bold text-gray-400 uppercase">Monthly EMI (Calculated)</label>
@@ -359,8 +359,14 @@ foreach($expenses as $e) {
                 <?php foreach($paymentMethods as $m) echo "<option ".($filterMethod==$m?'selected':'').">$m</option>"; ?>
             </select>
         </form>
-        <div class="mt-4 md:mt-0 font-bold text-gray-700">
-            Total Shown: <span class="text-red-600">₹<?php echo number_format($totalView, 2); ?></span>
+        <div class="mt-4 md:mt-0 flex items-center gap-4">
+            <a href="../api/export_expenses.php?month=<?php echo $filterMonth; ?>&category=<?php echo $filterCategory; ?>&method=<?php echo $filterMethod; ?>" 
+               class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded text-sm font-bold flex items-center gap-2 transition shadow-md">
+                <span>📥</span> Export CSV
+            </a>
+            <div class="font-bold text-gray-700">
+                Total Shown: <span class="text-red-600">₹<?php echo number_format($totalView, 2); ?></span>
+            </div>
         </div>
     </div>
 
@@ -457,7 +463,7 @@ foreach($expenses as $e) {
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Interest Rate (% p.a)</label>
-                    <input type="number" step="0.1" name="interest_rate" value="15" required 
+                    <input type="number" step="0.001" name="interest_rate" value="15" required 
                            class="w-full border p-2 rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-500">
                 </div>
             </div>
