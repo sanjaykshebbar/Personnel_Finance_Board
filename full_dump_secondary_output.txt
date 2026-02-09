@@ -1,0 +1,23 @@
+USERS:
+Array
+(
+    [0] => Array
+        (
+            [id] => 1
+            [name] => sanjayks
+            [email] => sanjaykshebbar@gmail.com
+            [password] => $2y$10$6PGcynxd2jY0nUJCThJ/LeB8hED4mtHQwPHHEoBSc/9wIWc5nmkWG
+            [created_at] => 2026-01-31 12:13:31
+        )
+
+)
+
+EMIS:
+Array
+(
+)
+
+LOANS:
+Array
+(
+)

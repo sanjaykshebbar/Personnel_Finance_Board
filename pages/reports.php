@@ -100,6 +100,30 @@ $totalIn = array_sum(array_column($focusIncomes, 'total_income'));
 $totalOut = array_sum(array_column($focusOutgoings, 'amount'));
 $netDrift = $totalIn - $totalOut;
 
+// 3. Category-wise spending for focus month
+$categoryStmt = $pdo->prepare("
+    SELECT category, SUM(amount) as total
+    FROM expenses
+    WHERE strftime('%Y-%m', date) = ? 
+    AND user_id = ?
+    AND converted_to_emi = 0
+    AND category != 'Credit Card Bill'
+    AND date >= '" . SYSTEM_START_DATE . "'
+    GROUP BY category
+    ORDER BY total DESC
+");
+$categoryStmt->execute([$focusMonth, $userId]);
+$categorySpending = $categoryStmt->fetchAll();
+
+$categoryLabels = [];
+$categoryValues = [];
+$categoryTotal = 0;
+foreach($categorySpending as $cat) {
+    $categoryLabels[] = $cat['category'];
+    $categoryValues[] = $cat['total'];
+    $categoryTotal += $cat['total'];
+}
+
 ?>
 
 <div class="space-y-6">
@@ -172,6 +196,64 @@ $netDrift = $totalIn - $totalOut;
                 </div>
             </div>
         </div>
+    </div>
+
+    <!-- Category-Wise Spending Analysis -->
+    <div class="bg-white dark:bg-gray-800 p-8 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700">
+        <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-8">
+            <div>
+                <h2 class="text-2xl font-black text-gray-900 dark:text-white tracking-tight">Category Spending Breakdown</h2>
+                <p class="text-xs text-brand-500 font-bold uppercase tracking-widest mt-1"><?php echo date('F Y', strtotime($focusMonth."-01")); ?></p>
+            </div>
+            <div class="px-4 py-2 bg-brand-50 dark:bg-brand-900/30 rounded-xl">
+                <span class="text-xs font-black text-brand-600 dark:text-brand-400 uppercase tracking-wider">Total: ₹<?php echo number_format($categoryTotal, 0); ?></span>
+            </div>
+        </div>
+
+        <?php if (empty($categorySpending)): ?>
+            <div class="text-center py-16 opacity-40">
+                <p class="text-6xl mb-4">📊</p>
+                <p class="text-sm font-bold text-gray-500">No expense data for this month</p>
+            </div>
+        <?php else: ?>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <!-- Pie Chart -->
+                <div class="flex items-center justify-center">
+                    <div class="w-full max-w-sm">
+                        <canvas id="categoryPieChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Category Table -->
+                <div class="space-y-3">
+                    <?php 
+                    $colors = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#14b8a6', '#f43f5e', '#a855f7', '#84cc16'];
+                    foreach($categorySpending as $idx => $cat): 
+                        $percentage = ($categoryTotal > 0) ? ($cat['total'] / $categoryTotal) * 100 : 0;
+                        $color = $colors[$idx % count($colors)];
+                    ?>
+                    <div class="p-4 bg-gray-50 dark:bg-gray-900/50 rounded-2xl hover:bg-gray-100 dark:hover:bg-gray-900 transition-all group">
+                        <div class="flex items-center justify-between gap-4">
+                            <div class="flex items-center gap-3 flex-1 min-w-0">
+                                <div class="w-4 h-4 rounded-full flex-shrink-0" style="background-color: <?php echo $color; ?>"></div>
+                                <span class="text-sm font-bold text-gray-900 dark:text-white truncate"><?php echo htmlspecialchars($cat['category']); ?></span>
+                            </div>
+                            <div class="flex items-center gap-4 flex-shrink-0">
+                                <div class="text-right">
+                                    <div class="text-sm font-black text-gray-900 dark:text-white">₹<?php echo number_format($cat['total'], 0); ?></div>
+                                    <div class="text-xs font-bold text-gray-400"><?php echo number_format($percentage, 1); ?>%</div>
+                                </div>
+                                <div class="w-16 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                    <div class="h-full transition-all duration-500 group-hover:opacity-80" 
+                                         style="width: <?php echo min(100, $percentage); ?>%; background-color: <?php echo $color; ?>"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        <?php endif; ?>
     </div>
 
     <!-- Drill-Down Ledger -->
@@ -278,5 +360,58 @@ $netDrift = $totalIn - $totalOut;
 .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 20px; }
 .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; }
 </style>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+<?php if(!empty($categoryValues)): ?>
+// Category Spending Pie Chart
+const categoryCtx = document.getElementById('categoryPieChart');
+if(categoryCtx) {
+    new Chart(categoryCtx, {
+        type: 'doughnut',
+        data: {
+            labels: <?php echo json_encode($categoryLabels); ?>,
+            datasets: [{
+                data: <?php echo json_encode($categoryValues); ?>,
+                backgroundColor: ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#14b8a6', '#f43f5e', '#a855f7', '#84cc16'],
+                borderWidth: 3,
+                borderColor: document.documentElement.classList.contains('dark') ? '#1f2937' : '#ffffff',
+                hoverOffset: 8
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            cutout: '65%',
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const label = context.label || '';
+                            const value = context.parsed;
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = ((value / total) * 100).toFixed(1);
+                            return `${label}: ₹${value.toLocaleString()} (${percentage}%)`;
+                        }
+                    },
+                    backgroundColor: document.documentElement.classList.contains('dark') ? '#1f2937' : '#ffffff',
+                    titleColor: document.documentElement.classList.contains('dark') ? '#f3f4f6' : '#111827',
+                    bodyColor: document.documentElement.classList.contains('dark') ? '#d1d5db' : '#374151',
+                    borderColor: document.documentElement.classList.contains('dark') ? '#374151' : '#e5e7eb',
+                    borderWidth: 1,
+                    padding: 12,
+                    displayColors: true,
+                    boxWidth: 12,
+                    boxHeight: 12
+                }
+            }
+        }
+    });
+}
+<?php endif; ?>
+</script>
 
 <?php require_once '../includes/footer.php'; ?>

@@ -8,6 +8,7 @@ $navItems = [
     ['name' => 'Income', 'url' => $prefix . 'pages/income.php', 'icon' => 'banknotes'],
     ['name' => 'Document Vault', 'url' => $prefix . 'pages/vault.php', 'icon' => 'folder'],
     ['name' => 'Expenses', 'url' => $prefix . 'pages/expenses.php', 'icon' => 'credit-card'],
+    ['name' => 'Categories', 'url' => $prefix . 'pages/categories.php', 'icon' => 'tag'],
     ['name' => 'Investments', 'url' => $prefix . 'pages/investments.php', 'icon' => 'trending-up'],
     ['name' => 'Loans', 'url' => $prefix . 'pages/loans.php', 'icon' => 'users'],
     ['name' => 'EMI Tracker', 'url' => $prefix . 'pages/emis.php', 'icon' => 'calendar'],
@@ -57,6 +58,7 @@ if (!function_exists('isDataActive')) {
                             case 'bolt': echo '⚡'; break;
                             case 'banknotes': echo '💰'; break;
                             case 'credit-card': echo '💸'; break;
+                            case 'tag': echo '🏷️'; break;
                             case 'trending-up': echo '📈'; break;
                             case 'calendar': echo '📅'; break;
                             case 'chart-pie': echo '📊'; break;
@@ -127,6 +129,7 @@ if (!function_exists('isDataActive')) {
                             case 'bolt': echo '⚡'; break;
                             case 'banknotes': echo '💰'; break;
                             case 'credit-card': echo '💸'; break;
+                            case 'tag': echo '🏷️'; break;
                             case 'trending-up': echo '📈'; break;
                             case 'calendar': echo '📅'; break;
                             case 'chart-pie': echo '📊'; break;

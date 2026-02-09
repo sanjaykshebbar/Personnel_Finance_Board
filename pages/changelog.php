@@ -10,12 +10,12 @@ require_once '../includes/header.php';
     <div class="relative overflow-hidden bg-brand-600 rounded-[2.5rem] p-8 md:p-12 text-white shadow-2xl shadow-brand-500/20">
         <div class="relative z-10">
             <div class="flex items-center gap-3 mb-4">
-                <span class="px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-xs font-black uppercase tracking-widest">Version 2.2.0</span>
-                <span class="text-white/60 text-xs font-medium">Released Feb 5, 2026</span>
+                <span class="px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-xs font-black uppercase tracking-widest">Version 2.4.0</span>
+                <span class="text-white/60 text-xs font-medium">Released <?php echo date('M j, Y'); ?></span>
             </div>
             <h1 class="text-3xl md:text-5xl font-black tracking-tight mb-4">Product Evolution</h1>
             <p class="text-brand-100 text-lg max-w-xl leading-relaxed">
-                Experience a smarter way to manage your finances with our latest updates focused on performance and bulk management.
+                Enhanced insights and control with smart category management, improved visualizations, and refined credit monitoring.
             </p>
         </div>
         <!-- Abstract Decoration -->
@@ -25,6 +25,138 @@ require_once '../includes/header.php';
 
     <!-- Timeline -->
     <div class="space-y-12">
+        <!-- V2.4.0 -->
+        <div class="relative pl-8 md:pl-0">
+            <!-- Connector Line -->
+            <div class="hidden md:block absolute left-1/2 -ml-px h-full w-0.5 bg-gray-200 dark:bg-gray-800"></div>
+            
+            <div class="md:grid md:grid-cols-2 md:gap-16 items-start">
+                <div class="md:text-right">
+                    <div class="sticky top-24">
+                        <span class="inline-block px-4 py-2 bg-brand-500 text-white text-sm font-black rounded-2xl mb-4 shadow-lg shadow-brand-500/20">v2.4.0</span>
+                        <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-2">Expense Management & UX Polish</h2>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mb-6 md:mb-0">Introduced dedicated expense management page, enhanced navigation, and streamlined credit card editing.</p>
+                    </div>
+                </div>
+                
+                <div class="space-y-6">
+                    <div class="bg-white dark:bg-gray-800 p-6 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm transition-all hover:shadow-md">
+                        <div class="flex items-center gap-3 mb-4">
+                            <div class="h-10 w-10 bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 rounded-xl flex items-center justify-center text-xl">📝</div>
+                            <h3 class="font-bold text-gray-900 dark:text-white">New Expenses Page</h3>
+                        </div>
+                        <ul class="space-y-3 text-sm text-gray-600 dark:text-gray-400">
+                            <li class="flex items-start gap-2">
+                                <span class="text-blue-500">✓</span>
+                                <span><b>Dedicated Management:</b> Full CRUD operations (Add, Edit, Delete, List) for expenses on a standalone page.</span>
+                            </li>
+                            <li class="flex items-start gap-2">
+                                <span class="text-blue-500">✓</span>
+                                <span><b>Advanced Filtering:</b> Filter expenses by category and search by description or method.</span>
+                            </li>
+                            <li class="flex items-start gap-2">
+                                <span class="text-blue-500">✓</span>
+                                <span><b>Dashboard Integration:</b> Restored direct access via "View All" link on the Dashboard.</span>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-white dark:bg-gray-800 p-6 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm transition-all hover:shadow-md">
+                        <div class="flex items-center gap-3 mb-4">
+                            <div class="h-10 w-10 bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 rounded-xl flex items-center justify-center text-xl">✏️</div>
+                            <h3 class="font-bold text-gray-900 dark:text-white">Credit Card Improvements</h3>
+                        </div>
+                        <ul class="space-y-3 text-sm text-gray-600 dark:text-gray-400">
+                            <li class="flex items-start gap-2">
+                                <span class="text-emerald-500">✓</span>
+                                <span><b>Edit Modal:</b> Intuitive modal for updating credit limits, card names, and opening balances without page reloads.</span>
+                            </li>
+                            <li class="flex items-start gap-2">
+                                <span class="text-emerald-500">✓</span>
+                                <span><b>Seamless UX:</b> Removed confusing top-of-page forms in favor of contextual editing.</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- V2.3.0 -->
+        <div class="relative pl-8 md:pl-0">
+            <!-- Connector Line -->
+            <div class="hidden md:block absolute left-1/2 -ml-px h-full w-0.5 bg-gray-200 dark:bg-gray-800"></div>
+            
+            <div class="md:grid md:grid-cols-2 md:gap-16 items-start">
+                <div class="md:text-right">
+                    <div class="sticky top-24">
+                        <span class="inline-block px-4 py-2 bg-brand-500 text-white text-sm font-black rounded-2xl mb-4 shadow-lg shadow-brand-500/20">v2.3.0</span>
+                        <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-2">Insights & Category Control</h2>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mb-6 md:mb-0">Advanced category management, enhanced reporting, and refined credit monitoring.</p>
+                    </div>
+                </div>
+                
+                <div class="space-y-6">
+                    <div class="bg-white dark:bg-gray-800 p-6 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm transition-all hover:shadow-md">
+                        <div class="flex items-center gap-3 mb-4">
+                            <div class="h-10 w-10 bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400 rounded-xl flex items-center justify-center text-xl">🏷️</div>
+                            <h3 class="font-bold text-gray-900 dark:text-white">Category Management System</h3>
+                        </div>
+                        <ul class="space-y-3 text-sm text-gray-600 dark:text-gray-400">
+                            <li class="flex items-start gap-2">
+                                <span class="text-purple-500">✓</span>
+                                <span><b>Centralized Categories:</b> View all default and custom expense categories in one place with usage statistics.</span>
+                            </li>
+                            <li class="flex items-start gap-2">
+                                <span class="text-purple-500">✓</span>
+                                <span><b>Rename & Merge:</b> Consolidate similar categories or fix typos by renaming - automatically updates all expenses.</span>
+                            </li>
+                            <li class="flex items-start gap-2">
+                                <span class="text-purple-500">✓</span>
+                                <span><b>Usage Analytics:</b> See transaction counts and total spending per category at a glance.</span>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-white dark:bg-gray-800 p-6 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm transition-all hover:shadow-md">
+                        <div class="flex items-center gap-3 mb-4">
+                            <div class="h-10 w-10 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 rounded-xl flex items-center justify-center text-xl">📊</div>
+                            <h3 class="font-bold text-gray-900 dark:text-white">Category-Wise Spending Reports</h3>
+                        </div>
+                        <ul class="space-y-3 text-sm text-gray-600 dark:text-gray-400">
+                            <li class="flex items-start gap-2">
+                                <span class="text-indigo-500">✓</span>
+                                <span><b>Visual Breakdown:</b> Interactive donut chart showing spending distribution by category.</span>
+                            </li>
+                            <li class="flex items-start gap-2">
+                                <span class="text-indigo-500">✓</span>
+                                <span><b>Detailed Analytics:</b> Percentage breakdowns and amount details with color-coded progress bars.</span>
+                            </li>
+                            <li class="flex items-start gap-2">
+                                <span class="text-indigo-500">✓</span>
+                                <span><b>Month Selector:</b> Analyze category spending patterns across different months.</span>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-white dark:bg-gray-800 p-6 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm transition-all hover:shadow-md">
+                        <div class="flex items-center gap-3 mb-4">
+                            <div class="h-10 w-10 bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 rounded-xl flex items-center justify-center text-xl">💳</div>
+                            <h3 class="font-bold text-gray-900 dark:text-white">Credit Card UI Enhancements</h3>
+                        </div>
+                        <ul class="space-y-3 text-sm text-gray-600 dark:text-gray-400">
+                            <li class="flex items-start gap-2">
+                                <span class="text-emerald-500">✓</span>
+                                <span><b>Smart Color Coding:</b> Utilization now shows green (<30%), orange (30-60%), and red (≥60%) for better credit health tracking.</span>
+                            </li>
+                            <li class="flex items-start gap-2">
+                                <span class="text-emerald-500">✓</span>
+                                <span><b>Enhanced Balance Display:</b> Card balances highlighted in green for quick visual identification.</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- V2.2.0 -->
         <div class="relative pl-8 md:pl-0">
             <!-- Connector Line -->

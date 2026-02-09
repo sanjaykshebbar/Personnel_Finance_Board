@@ -1,0 +1,2 @@
+ID: 2 | Name: Samsung Galaxy S25 Ultra | EMI: 17149.07934558 | P: 190000.0 | R: 15.0 | T: 12
+  Expected: 17149.07934558 (Interest Total: 15788.952146959)

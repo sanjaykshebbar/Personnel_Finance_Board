@@ -77,6 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute([$balance, $cardId, $userId]);
         $_SESSION['flash_message'] = "Balance settled. Absorbed " . number_format($balance, 2) . " into opening balance.";
     } else {
+        // Add / Edit Account
         $provider = $_POST['provider_name'];
         $limit = $_POST['credit_limit'];
         $opening_balance = $_POST['opening_balance'] ?? 0;
@@ -121,13 +122,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-$editRow = null;
-if (isset($_GET['edit'])) {
-    $stmt = $pdo->prepare("SELECT * FROM credit_accounts WHERE id = ? AND user_id = ?");
-    $stmt->execute([$_GET['edit'], $userId]);
-    $editRow = $stmt->fetch();
-}
-
 // History View Logic
 $historyCard = null;
 $historyTxns = [];
@@ -167,8 +161,7 @@ if (isset($_GET['history_view'])) {
     }
 }
 
-// Fetch Credit Accounts with Advanced Usage Calculation BEFORE header
-// FIXED: Added TRIM(LOWER(...)) to ensure case-insensitive matching
+// Fetch Credit Accounts with Advanced Usage Calculation
 $stmt = $pdo->prepare("
     SELECT ca.*, 
     (SELECT IFNULL(SUM(amount), 0) FROM expenses WHERE TRIM(LOWER(payment_method)) = TRIM(LOWER(ca.provider_name)) AND converted_to_emi = 0 AND user_id = ca.user_id AND date >= '" . SYSTEM_START_DATE . "') as one_time_expenses,
@@ -180,51 +173,27 @@ $stmt = $pdo->prepare("
 $stmt->execute([$userId]);
 $accounts = $stmt->fetchAll();
 
-// NOW load header (which outputs HTML)
 $pageTitle = 'Credit Usage';
 require_once '../includes/header.php';
 ?>
 
 <div class="space-y-6">
-    <!-- Header & Form -->
-    <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow border border-gray-100 dark:border-gray-700 transition-colors">
-        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-            <div>
-                <h3 class="font-bold text-lg text-gray-900 dark:text-white"><?php echo $editRow?'Edit Account':'Add Credit Account'; ?></h3>
-                <p class="text-xs text-gray-400">Manage your cards and limits.</p>
-            </div>
-            <div class="px-3 py-1.5 bg-brand-50 dark:bg-brand-900/30 border border-brand-100 dark:border-brand-800 rounded-lg">
-                <p class="text-[10px] font-black text-brand-600 dark:text-brand-400 uppercase tracking-widest">Active Accounting Start: <?php echo date('d M Y', strtotime(SYSTEM_START_DATE)); ?></p>
-            </div>
+    <!-- Header With Add Button -->
+    <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow border border-gray-100 dark:border-gray-700 transition-colors flex justify-between items-center">
+        <div>
+            <h3 class="font-bold text-lg text-gray-900 dark:text-white">Credit Cards</h3>
+            <p class="text-xs text-gray-400">Manage limits & tracks utilization.</p>
         </div>
-        
-        <form method="POST" action="credit.php" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-            <input type="hidden" name="id" value="<?php echo $editRow['id']??''; ?>">
-            <div>
-                <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Provider / Card Name</label>
-                <input type="text" name="provider_name" placeholder="Axis Ace, OneCard..." required 
-                       value="<?php echo $editRow['provider_name']??''; ?>" class="w-full border-gray-200 dark:border-gray-600 dark:bg-gray-900 dark:text-white p-2 rounded text-sm focus:ring-brand-500">
+        <div class="flex gap-4 items-center">
+            <div class="hidden md:block px-3 py-1.5 bg-brand-50 dark:bg-brand-900/30 border border-brand-100 dark:border-brand-800 rounded-lg">
+                <p class="text-[10px] font-black text-brand-600 dark:text-brand-400 uppercase tracking-widest">Start Date: <?php echo date('d M Y', strtotime(SYSTEM_START_DATE)); ?></p>
             </div>
-            <div>
-                <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Credit Limit (₹)</label>
-                <input type="number" step="0.01" name="credit_limit" required 
-                       value="<?php echo $editRow['credit_limit']??''; ?>" class="w-full border-gray-200 dark:border-gray-600 dark:bg-gray-900 dark:text-white p-2 rounded text-sm focus:ring-brand-500">
-            </div>
-            <div>
-                <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">
-                    Opening Balance (₹)
-                    <span class="text-[8px] text-gray-400 normal-case">· Real outstanding at start</span>
-                </label>
-                <input type="number" step="0.01" name="opening_balance" 
-                       value="<?php echo $editRow['opening_balance']??0; ?>" 
-                       class="w-full border-gray-200 dark:border-gray-600 dark:bg-gray-900 dark:text-white p-2 rounded text-sm focus:ring-brand-500">
-            </div>
-            <div>
-                <button class="bg-brand-600 text-white w-full py-2.5 rounded-lg font-bold hover:bg-brand-700 transition shadow-md">
-                    <?php echo $editRow?'Update Account':'Save Card'; ?>
-                </button>
-            </div>
-        </form>
+            
+            <button onclick="openAccountModal()" 
+                    class="bg-brand-600 hover:bg-brand-700 text-white font-bold py-2 px-4 rounded-xl shadow-lg shadow-brand-600/20 text-sm transition-all active:scale-95 flex items-center gap-2">
+                <span>➕</span> Add New Card
+            </button>
+        </div>
     </div>
 
     <!-- Cards Grid -->
@@ -243,23 +212,31 @@ require_once '../includes/header.php';
             $percent = ($limit > 0) ? ($totalLiability / $limit) * 100 : 0;
             $percent = max(0, $percent);
             
-            // UI Color Logic
-            $statusColor = $percent > 85 ? 'text-red-600 dark:text-red-400' : ($percent > 60 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400');
-            $chartColor = $percent > 85 ? '#ef4444' : ($percent > 60 ? '#f59e0b' : '#10b981');
+            // UI Color Logic - Green (<30%), Orange (30-60%), Red (>=60%)
+            $statusColor = $percent >= 60 ? 'text-red-600 dark:text-red-400' : ($percent >= 30 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400');
+            $chartColor = $percent >= 60 ? '#ef4444' : ($percent >= 30 ? '#f59e0b' : '#10b981');
+            
+            // Safe JSON encode for JS
+            $accJson = htmlspecialchars(json_encode($acc), ENT_QUOTES, 'UTF-8');
         ?>
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 flex flex-col transition-all hover:shadow-md">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 flex flex-col transition-all hover:shadow-md group">
             <div class="flex justify-between items-start mb-6">
                 <div>
                     <h3 class="text-lg font-bold text-gray-900 dark:text-white"><?php echo htmlspecialchars($acc['provider_name']); ?></h3>
-                    <p class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Credit card Profile</p>
+                    <p class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Credit Card Profile</p>
                 </div>
                 <div class="flex space-x-2">
                     <button onclick="openQuickLog('<?php echo htmlspecialchars($acc['provider_name']); ?>')" class="p-1.5 bg-brand-50 dark:bg-brand-900/30 text-brand-600 rounded-md hover:bg-brand-100 transition text-[9px] font-black uppercase" title="Log Expense">+ Log</button>
                     <a href="?history_view=<?php echo $acc['id']; ?>" class="p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 rounded-md hover:bg-blue-100 transition text-[9px] font-black uppercase" title="View History">📜</a>
-                    <a href="?edit=<?php echo $acc['id']; ?>" class="p-1.5 bg-gray-50 dark:bg-gray-900 rounded-md hover:bg-brand-50 dark:hover:bg-brand-900/30 transition">✏️</a>
+                    
+                    <!-- EDIT Button to trigger Modal -->
+                    <button onclick='openAccountModal(<?php echo $accJson; ?>)' class="p-1.5 bg-gray-50 dark:bg-gray-900 rounded-md hover:bg-brand-50 dark:hover:bg-brand-900/30 transition text-gray-500 hover:text-brand-600" title="Edit Card Info">
+                        ✏️
+                    </button>
+                    
                     <form method="POST" onsubmit="return confirm('Delete card?')" class="inline">
                         <input type="hidden" name="delete_id" value="<?php echo $acc['id']; ?>">
-                        <button class="p-1.5 bg-gray-50 dark:bg-gray-900 rounded-md hover:bg-red-50 dark:hover:bg-red-900/30 transition">🗑️</button>
+                        <button class="p-1.5 bg-gray-50 dark:bg-gray-900 rounded-md hover:bg-red-50 dark:hover:bg-red-900/30 transition text-gray-500 hover:text-red-600" title="Delete Card">🗑️</button>
                     </form>
                 </div>
             </div>
@@ -287,7 +264,7 @@ require_once '../includes/header.php';
             <div class="grid grid-cols-2 gap-4 pt-4 border-t border-gray-100 dark:border-gray-700">
                 <div>
                     <div class="text-[10px] font-bold text-gray-400 uppercase text-center mb-1">Card Balance</div>
-                    <div class="text-sm font-bold text-gray-900 dark:text-white text-center">₹<?php echo number_format($cardBalance, 2); ?></div>
+                    <div class="text-sm font-bold text-emerald-600 dark:text-emerald-400 text-center">₹<?php echo number_format($cardBalance, 2); ?></div>
                     <p class="text-[8px] text-gray-400 text-center leading-tight">Exp - Paid</p>
                     <?php if($cardBalance < 0): ?>
                         <form method="POST" class="mt-2 text-center">
@@ -317,6 +294,48 @@ require_once '../includes/header.php';
     </div>
 </div>
 
+<!-- Account Add/Edit Modal -->
+<div id="accountModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl transition-all scale-100">
+        <div class="p-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
+            <div>
+                <h3 class="font-black text-lg text-gray-900 dark:text-white" id="accountModalTitle">Add Credit Account</h3>
+                <p class="text-[10px] text-gray-500 font-bold uppercase">Update Limits & Details</p>
+            </div>
+            <button onclick="closeAccountModal()" class="text-gray-400 hover:text-gray-600 text-xl font-bold">✕</button>
+        </div>
+        
+        <form method="POST" action="credit.php" class="p-6 space-y-4">
+            <input type="hidden" name="id" id="accId">
+            
+            <div>
+                <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Provider / Card Name</label>
+                <input type="text" name="provider_name" id="accName" placeholder="Axis Ace, OneCard..." required 
+                       class="w-full border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 dark:text-white p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500 transition-all">
+            </div>
+            
+            <div>
+                <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Credit Limit (₹)</label>
+                <input type="number" step="0.01" name="credit_limit" id="accLimit" required 
+                       class="w-full border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 dark:text-white p-3 rounded-xl text-lg font-bold outline-none focus:ring-2 focus:ring-brand-500 transition-all">
+            </div>
+            
+            <div>
+                <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">
+                    Opening Balance (₹)
+                    <span class="text-[8px] text-gray-400 normal-case ml-2">· Real outstanding as of <?php echo date('M Y', strtotime(SYSTEM_START_DATE)); ?></span>
+                </label>
+                <input type="number" step="0.01" name="opening_balance" id="accOpen" value="0"
+                       class="w-full border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 dark:text-white p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500 transition-all">
+            </div>
+            
+            <button type="submit" id="accSubmitBtn" class="w-full bg-brand-600 hover:bg-brand-700 text-white py-3 rounded-xl font-bold transition shadow-lg shadow-brand-600/20 active:scale-95">
+                Save Account Details 💾
+            </button>
+        </form>
+    </div>
+</div>
+
 <!-- Quick Log Modal -->
 <div id="quickLogModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
     <div class="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl">
@@ -325,7 +344,7 @@ require_once '../includes/header.php';
                 <h3 class="font-black text-gray-900 dark:text-white">Quick Transaction</h3>
                 <p id="quickLogCardName" class="text-[10px] text-brand-600 font-bold uppercase"></p>
             </div>
-            <button onclick="closeQuickLog()" class="text-gray-400 hover:text-gray-600">✕</button>
+            <button onclick="closeQuickLog()" class="text-gray-400 hover:text-gray-600 text-xl font-bold">✕</button>
         </div>
         <form method="POST" class="p-6 space-y-4">
             <input type="hidden" name="quick_log" value="1">
@@ -447,6 +466,39 @@ require_once '../includes/header.php';
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+function openAccountModal(data = null) {
+    const modal = document.getElementById('accountModal');
+    const title = document.getElementById('accountModalTitle');
+    const btn = document.getElementById('accSubmitBtn');
+    
+    // Reset Form
+    document.getElementById('accId').value = '';
+    document.getElementById('accName').value = '';
+    document.getElementById('accLimit').value = '';
+    document.getElementById('accOpen').value = '0';
+    
+    if (data) {
+        // Edit Mode
+        title.innerText = 'Edit Credit Account';
+        btn.innerText = 'Update Account Details 🔄';
+        
+        document.getElementById('accId').value = data.id;
+        document.getElementById('accName').value = data.provider_name;
+        document.getElementById('accLimit').value = data.credit_limit;
+        document.getElementById('accOpen').value = data.opening_balance;
+    } else {
+        // Add Mode
+        title.innerText = 'Add Credit Account';
+        btn.innerText = 'Save New Account 💾';
+    }
+    
+    modal.classList.remove('hidden');
+}
+
+function closeAccountModal() {
+    document.getElementById('accountModal').classList.add('hidden');
+}
+
 function openQuickLog(card) {
     document.getElementById('quickLogCardName').innerText = card;
     document.getElementById('modalCardName').value = card;
