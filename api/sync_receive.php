@@ -74,8 +74,15 @@ if ($zip->open($tempZip) === TRUE) {
         // 5. Swap DB
         $newDb = $rootDir . '/temp_sync_extract/finance.db';
         if (file_exists($newDb)) {
-            // Backup existing just in case? No, "Sync" implies strict mirror.
-            copy($newDb, $rootDir . '/db/finance.db');
+            // CRITICAL: Close existing DB connection to release file lock (Windows specific)
+            if (isset($pdo)) $pdo = null;
+            
+            // Allow some time for the handle to close
+            usleep(100000); // 100ms
+            
+            if (!copy($newDb, $rootDir . '/db/finance.db')) {
+                throw new Exception("Failed to overwrite database. File might be locked.");
+            }
         }
 
         // 6. Merge Uploads
