@@ -10,12 +10,12 @@ require_once '../includes/header.php';
     <div class="relative overflow-hidden bg-brand-600 rounded-[2.5rem] p-8 md:p-12 text-white shadow-2xl shadow-brand-500/20">
         <div class="relative z-10">
             <div class="flex items-center gap-3 mb-4">
-                <span class="px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-xs font-black uppercase tracking-widest">Version 2.4.0</span>
+                <span class="px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-xs font-black uppercase tracking-widest">Version 2.4.1</span>
                 <span class="text-white/60 text-xs font-medium">Released <?php echo date('M j, Y'); ?></span>
             </div>
             <h1 class="text-3xl md:text-5xl font-black tracking-tight mb-4">Product Evolution</h1>
             <p class="text-brand-100 text-lg max-w-xl leading-relaxed">
-                Enhanced insights and control with smart category management, improved visualizations, and refined credit monitoring.
+                Reimagined High Availability Sync, dedicated System Dashboard, and enhanced data security controls.
             </p>
         </div>
         <!-- Abstract Decoration -->
@@ -25,6 +25,62 @@ require_once '../includes/header.php';
 
     <!-- Timeline -->
     <div class="space-y-12">
+        <!-- V2.4.1 -->
+        <div class="relative pl-8 md:pl-0">
+            <!-- Connector Line -->
+            <div class="hidden md:block absolute left-1/2 -ml-px h-full w-0.5 bg-gray-200 dark:bg-gray-800"></div>
+            
+            <div class="md:grid md:grid-cols-2 md:gap-16 items-start">
+                <div class="md:text-right">
+                    <div class="sticky top-24">
+                        <span class="inline-block px-4 py-2 bg-brand-500 text-white text-sm font-black rounded-2xl mb-4 shadow-lg shadow-brand-500/20">v2.4.1</span>
+                        <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-2">Live Sync & System Dashboard</h2>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mb-6 md:mb-0">Complete overhaul of the Maintenance page with real-time sync visibility and server role indicators.</p>
+                    </div>
+                </div>
+                
+                <div class="space-y-6">
+                    <div class="bg-white dark:bg-gray-800 p-6 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm transition-all hover:shadow-md">
+                        <div class="flex items-center gap-3 mb-4">
+                            <div class="h-10 w-10 bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 rounded-xl flex items-center justify-center text-xl">🔄</div>
+                            <h3 class="font-bold text-gray-900 dark:text-white">Live Sync Status</h3>
+                        </div>
+                        <ul class="space-y-3 text-sm text-gray-600 dark:text-gray-400">
+                            <li class="flex items-start gap-2">
+                                <span class="text-emerald-500">✓</span>
+                                <span><b>Real-time Feedback:</b> created a new visual console that shows step-by-step progress when backing up and syncing to nodes.</span>
+                            </li>
+                            <li class="flex items-start gap-2">
+                                <span class="text-emerald-500">✓</span>
+                                <span><b>Server Role Indicator:</b> New badge in Settings identifying if the server is Primary, Backup, or Standalone.</span>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-white dark:bg-gray-800 p-6 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm transition-all hover:shadow-md">
+                        <div class="flex items-center gap-3 mb-4">
+                            <div class="h-10 w-10 bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 rounded-xl flex items-center justify-center text-xl">🛡️</div>
+                            <h3 class="font-bold text-gray-900 dark:text-white">Security & UI Polish</h3>
+                        </div>
+                        <ul class="space-y-3 text-sm text-gray-600 dark:text-gray-400">
+                            <li class="flex items-start gap-2">
+                                <span class="text-blue-500">✓</span>
+                                <span><b>Secure Configuration:</b> Receiver Node secret keys are now masked by default with a toggle to reveal.</span>
+                            </li>
+                            <li class="flex items-start gap-2">
+                                <span class="text-blue-500">✓</span>
+                                <span><b>Form Resubmission Fix:</b> Implemented PRG pattern to prevent "Confirm Form Resubmission" popups on refresh.</span>
+                            </li>
+                            <li class="flex items-start gap-2">
+                                <span class="text-blue-500">✓</span>
+                                <span><b>Dashboard UI:</b> Professional card-based layout for the Settings & Maintenance page.</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- V2.4.0 -->
         <div class="relative pl-8 md:pl-0">
             <!-- Connector Line -->
@@ -33,7 +89,7 @@ require_once '../includes/header.php';
             <div class="md:grid md:grid-cols-2 md:gap-16 items-start">
                 <div class="md:text-right">
                     <div class="sticky top-24">
-                        <span class="inline-block px-4 py-2 bg-brand-500 text-white text-sm font-black rounded-2xl mb-4 shadow-lg shadow-brand-500/20">v2.4.0</span>
+                        <span class="inline-block px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-sm font-black rounded-2xl mb-4">v2.4.0</span>
                         <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-2">Expense Management & UX Polish</h2>
                         <p class="text-sm text-gray-500 dark:text-gray-400 mb-6 md:mb-0">Introduced dedicated expense management page, enhanced navigation, and streamlined credit card editing.</p>
                     </div>
