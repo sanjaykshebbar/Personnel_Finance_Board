@@ -1,14 +1,10 @@
-<<<<<<< HEAD
-[]
-=======
 [
     {
         "id": "69822b286e1ed",
         "name": "Pibackup",
-        "url": "http:\/\/10.0.0.4:8000\/api\/sync_receive.php",
+        "url": "http://10.0.0.4:8000/api/sync_receive.php",
         "secret": "W1nd0vv$",
         "last_sync": null,
         "status": "Pending"
     }
 ]
->>>>>>> de2d3e066390ec45d4566fd63728cd7445024089
