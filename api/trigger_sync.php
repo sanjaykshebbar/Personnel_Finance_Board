@@ -87,7 +87,17 @@ try {
         curl_setopt($ch, CURLOPT_POST, 1);
         curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 300); // 5 min timeout for large files
+        
+        // Connectivity Tuning
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10); // 10s to connect
+        curl_setopt($ch, CURLOPT_TIMEOUT, 600);       // 10 min for transfer
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Expect:']); // Disable Expect: 100-continue
+        curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4); // Force IPv4
+        
+        // Debugging (Optional: write to file if needed, but for now just basic error capture)
+        // $fp = fopen($rootDir . '/curl_debug.txt', 'w+');
+        // curl_setopt($ch, CURLOPT_VERBOSE, 1);
+        // curl_setopt($ch, CURLOPT_STDERR, $fp);
 
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
