@@ -6,6 +6,7 @@ $navItems = [
     ['name' => 'Dashboard', 'url' => $prefix . 'index.php', 'icon' => 'home'],
     ['name' => 'Quick Update', 'url' => $prefix . 'pages/quick_add.php', 'icon' => 'bolt'],
     ['name' => 'Income', 'url' => $prefix . 'pages/income.php', 'icon' => 'banknotes'],
+    ['name' => 'Analysis', 'url' => $prefix . 'pages/analysis.php', 'icon' => 'chart-bar'],
     ['name' => 'Document Vault', 'url' => $prefix . 'pages/vault.php', 'icon' => 'folder'],
     ['name' => 'Expenses', 'url' => $prefix . 'pages/expenses.php', 'icon' => 'credit-card'],
     ['name' => 'Categories', 'url' => $prefix . 'pages/categories.php', 'icon' => 'tag'],
@@ -62,6 +63,7 @@ if (!function_exists('isDataActive')) {
                             case 'trending-up': echo '📈'; break;
                             case 'calendar': echo '📅'; break;
                             case 'chart-pie': echo '📊'; break;
+                            case 'chart-bar': echo '📈'; break;
                             case 'users': echo '🤝'; break;
                             case 'scale': echo '⚖️'; break;
                             case 'document-arrow-up': echo '📂'; break;
@@ -133,6 +135,7 @@ if (!function_exists('isDataActive')) {
                             case 'trending-up': echo '📈'; break;
                             case 'calendar': echo '📅'; break;
                             case 'chart-pie': echo '📊'; break;
+                            case 'chart-bar': echo '📈'; break;
                             case 'users': echo '🤝'; break;
                             case 'scale': echo '⚖️'; break;
                             case 'document-arrow-up': echo '📂'; break;

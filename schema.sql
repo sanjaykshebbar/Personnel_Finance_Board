@@ -110,3 +110,20 @@ CREATE TABLE investment_plans (
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
+
+CREATE TABLE messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    sender TEXT NOT NULL,
+    message_text TEXT NOT NULL,
+    category TEXT DEFAULT 'UNCATEGORIZED',
+    timestamp DATETIME,
+    is_read INTEGER DEFAULT 0,
+    is_staged INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Quick Entries Migration (Adding columns to existing table for reference)
+-- ALTER TABLE quick_entries ADD COLUMN message_id INTEGER;
+-- ALTER TABLE quick_entries ADD COLUMN category TEXT DEFAULT 'Other';

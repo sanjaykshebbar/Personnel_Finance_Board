@@ -28,12 +28,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($entries) {
             $pdo->beginTransaction();
             try {
-                $insStmt = $pdo->prepare("INSERT INTO expenses (user_id, date, category, description, amount, payment_method) VALUES (?, ?, 'Other', ?, ?, ?)");
+                $insStmt = $pdo->prepare("INSERT INTO expenses (user_id, date, category, description, amount, payment_method) VALUES (?, ?, ?, ?, ?, ?)");
                 $delStmt = $pdo->prepare("DELETE FROM quick_entries WHERE id = ?");
                 
                 foreach ($entries as $e) {
-                    // Defaulting category to 'Other' for quick add, user can change later if needed or we can add category dropdown
-                    $insStmt->execute([$userId, $e['date'], $e['description'], $e['amount'], $e['payment_method']]);
+                    $cat = $e['category'] ?: 'Other';
+                    // Map Bank/Card categories to standard Expense categories if needed
+                    if ($cat === 'Bank_Transactions') $cat = 'Bills & Utilities';
+                    if ($cat === 'Credit_Card') $cat = 'Shopping';
+                    
+                    $insStmt->execute([$userId, $e['date'], $cat, $e['description'], $e['amount'], $e['payment_method']]);
                     $delStmt->execute([$e['id']]);
                 }
                 
@@ -141,9 +145,15 @@ while ($row = $creditStmt->fetch()) {
             <?php foreach($pendingEntries as $entry): ?>
                 <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex justify-between items-center group">
                     <div>
-                        <p class="font-bold text-gray-800 dark:text-white"><?php echo htmlspecialchars($entry['description'] ?: 'Unspecified'); ?></p>
+                        <div class="flex items-center gap-2">
+                            <p class="font-bold text-gray-800 dark:text-white"><?php echo htmlspecialchars($entry['description'] ?: 'Unspecified'); ?></p>
+                            <?php if ($entry['message_id']): ?>
+                                <span class="text-[8px] bg-brand-100 dark:bg-brand-900/30 text-brand-600 px-1 rounded font-bold">SMS</span>
+                            <?php endif; ?>
+                        </div>
                         <p class="text-xs text-gray-500">
                             <?php echo $entry['date']; ?> • <span class="text-brand-600 font-semibold"><?php echo $entry['payment_method']; ?></span>
+                            • <span class="text-gray-400 italic"><?php echo str_replace('_', ' ', $entry['category']); ?></span>
                         </p>
                     </div>
                     <div class="flex items-center gap-4">

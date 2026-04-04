@@ -158,6 +158,19 @@ function initDb($pdo) {
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )";
 
+    // 10. Messages Table
+    $queries[] = "CREATE TABLE IF NOT EXISTS messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        sender TEXT NOT NULL,
+        message_text TEXT NOT NULL,
+        category TEXT DEFAULT 'UNCATEGORIZED',
+        timestamp DATETIME,
+        is_read INTEGER DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )";
+
     // Execute creation queries
     foreach ($queries as $q) {
         $pdo->exec($q);
