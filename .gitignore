@@ -10,6 +10,7 @@ uploads/vault/user_*/**
 .env
 config/sync_secret.txt
 config/sms_sync_secret.txt
+config/sync_nodes.json
 
 # PHP / OS Trash
 .DS_Store

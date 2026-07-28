@@ -1,5 +1,6 @@
 <?php
 // config/database.php
+require_once __DIR__ . '/ai_config.php';
 
 $dbPath = __DIR__ . '/../db/finance.db';
 define('SYSTEM_START_DATE', '2026-02-01');

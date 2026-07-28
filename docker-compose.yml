@@ -10,7 +10,10 @@ services:
     volumes:
       - ./db:/var/www/html/db
       - ./uploads:/var/www/html/uploads
+      - ./config:/var/www/html/config
     restart: unless-stopped
+    env_file:
+      - .env
     environment:
       - TZ=Asia/Kolkata
     healthcheck:

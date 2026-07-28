@@ -15,6 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 require_once '../config/database.php'; // For any DB utils, mostly we need paths
+require_once '../includes/api_auth.php';
 // Since this is a standalone entry point, define paths relative to this file
 $rootDir = realpath(__DIR__ . '/../');
 
@@ -43,8 +44,7 @@ if (!file_exists($secretFile)) {
     die("Setup Error: config/sync_secret.txt missing on backup server.");
 }
 
-$expectedSecret = trim(file_get_contents($secretFile));
-if ($secret !== $expectedSecret) {
+if (!checkApiSecret($secret, $secretFile)) {
     http_response_code(401);
     die("Unauthorized: Invalid Secret");
 }

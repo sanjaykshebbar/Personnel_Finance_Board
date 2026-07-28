@@ -15,6 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     unzip \
     curl \
     git \
+    poppler-utils \
     && docker-php-ext-install pdo pdo_sqlite zip curl mbstring xml bcmath intl \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 

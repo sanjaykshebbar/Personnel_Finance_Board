@@ -5,6 +5,7 @@ set_time_limit(300);
 
 require_once '../config/database.php';
 require_once '../includes/SyncManager.php';
+require_once '../includes/api_auth.php';
 
 $rootDir = realpath(__DIR__ . '/../');
 
@@ -22,8 +23,7 @@ if (!file_exists($secretFile)) {
     die("Setup Error: config/sync_secret.txt missing on this server.");
 }
 
-$expectedSecret = trim(file_get_contents($secretFile));
-if ($secret !== $expectedSecret) {
+if (!checkApiSecret($secret, $secretFile)) {
     http_response_code(401);
     die("Unauthorized: Invalid Secret");
 }
