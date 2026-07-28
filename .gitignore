@@ -1,11 +1,15 @@
 # Databases
 db/*.db
 db/*.db-journal
+db/backups/
+*.db.zip
 
 # Uploads & Secrets
 uploads/vault/user_*/**
 !uploads/vault/.gitkeep
 .env
+config/sync_secret.txt
+config/sms_sync_secret.txt
 
 # PHP / OS Trash
 .DS_Store
@@ -23,6 +27,21 @@ repro_*.php
 dump_*.php
 migration_*.php
 verify_fixes.php
+search_*.php
+full_dump_*.php
+deep_search_db.php
+fast_search_db.php
+compare_dbs.php
+audit_onecard.php
+cleanup_orphans.php
+universal_fix.php
+final_check.php
+fix_xampp_db.php
+temp_dump_schema*.php
+*_output.txt
+alldbs.txt
+dbs.txt
+counts.txt
 schema_output.txt
 expense_debug.json
 .vscode/
