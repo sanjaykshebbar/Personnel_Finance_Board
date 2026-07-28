@@ -38,7 +38,7 @@ universal_fix.php
 final_check.php
 fix_xampp_db.php
 temp_dump_schema*.php
-*_output.txt
+*_output*.txt
 alldbs.txt
 dbs.txt
 counts.txt
