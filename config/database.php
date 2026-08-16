@@ -159,10 +159,53 @@ function initDb($pdo) {
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )";
 
+    // 10. AI Import Queue Table (pasted text, statement uploads, SMS sync)
+    $queries[] = "CREATE TABLE IF NOT EXISTS ai_import_queue (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        batch_id TEXT NOT NULL,
+        source TEXT NOT NULL, -- 'paste' | 'upload' | 'sms'
+        dedup_hash TEXT NOT NULL,
+        raw_text TEXT NOT NULL,
+        txn_type TEXT NOT NULL, -- 'expense' | 'income'
+        date DATE,
+        amount REAL,
+        category TEXT,
+        description TEXT,
+        payment_method TEXT,
+        target_account TEXT,
+        confidence REAL,
+        ai_notes TEXT,
+        status TEXT DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        resolved_at DATETIME,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )";
+
+    // 11. AI SMS Seen Table - tracks which SMS messages have already been
+    // processed (regardless of outcome), so backlog re-syncs skip the AI
+    // call entirely for messages seen before instead of just re-deduping
+    // after the fact.
+    $queries[] = "CREATE TABLE IF NOT EXISTS ai_sms_seen (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        msg_hash TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )";
+
     // Execute creation queries
     foreach ($queries as $q) {
         $pdo->exec($q);
     }
+
+    // Dedup indexes: safe to re-run INSERT OR IGNORE for the same (user, hash) pair
+    try {
+        $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_queue_dedup ON ai_import_queue(user_id, dedup_hash)");
+    } catch (Exception $e) {}
+    try {
+        $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_sms_seen ON ai_sms_seen(user_id, msg_hash)");
+    } catch (Exception $e) {}
 
     // Migration: Add columns if they don't exist
     $tables = ['income', 'expenses', 'investments', 'loans', 'credit_accounts', 'emis', 'investment_plans'];
